@@ -1,0 +1,7 @@
+# ARTEX on Fly.io — use the prebuilt, published container.
+# Avoids COPY dist/amd64/artex (the binary is not in the Fly build context).
+FROM ghcr.io/jiwoochris/artex-global:v0.3.15-global.1
+ENV ARTEX_LANG=es
+EXPOSE 8787
+# The upstream image already provides /app/start.sh as ENTRYPOINT.
+CMD ["-addr", ":8787", "-proxy", "127.0.0.1:8788"]
