@@ -1,0 +1,27 @@
+# Fly.io deployment for the fork: https://github.com/ricard64x/artex-global
+# Existing encrypted data volume is in gru; keep the primary region there.
+app = "artex-global-py"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ARTEX_LANG = "es"
+
+[[mounts]]
+  source = "data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
