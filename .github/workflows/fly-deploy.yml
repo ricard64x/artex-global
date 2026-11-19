@@ -1,0 +1,47 @@
+name: Deploy ARTEX to Fly.io
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-deploy-artex-global-py
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy pinned image
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Verify Fly.io authentication and required app secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FLY_API_TOKEN:-}" ]; then
+            echo "::error::Add FLY_API_TOKEN to GitHub Actions repository secrets first."
+            exit 1
+          fi
+          flyctl auth whoami >/dev/null
+          secret_names="$(flyctl secrets list --app artex-global-py | awk 'NR>1 {print $1}')"
+          if ! grep -qx 'ARTEX_PG_DSN' <<< "$secret_names"; then
+            echo "::error::ARTEX_PG_DSN is missing from the Fly.io app. Configure PostgreSQL before deploying."
+            exit 1
+          fi
+          if ! grep -Eq '^(ARTEX_SETUP_TOKEN|ARTEX_ADMIN_PASSWORD)$' <<< "$secret_names"; then
+            echo "::error::Configure ARTEX_SETUP_TOKEN or ARTEX_ADMIN_PASSWORD in Fly.io secrets before deploying publicly."
+            exit 1
+          fi
+
+      - name: Deploy prebuilt ARTEX image with correct port and existing volume
+        run: flyctl deploy --app artex-global-py --config fly.toml --remote-only
+
+      - name: Show status
+        if: success()
+        run: flyctl status --app artex-global-py
