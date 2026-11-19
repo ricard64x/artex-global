@@ -1,10 +1,11 @@
-# Fly.io deployment for the fork: https://github.com/ricard64x/artex-global
-# Existing encrypted data volume is in gru; keep the primary region there.
+# Fly.io configuration for ARTEX (uses an upstream prebuilt image).
+# Keep region gru: existing encrypted data volume is in gru.
 app = "artex-global-py"
 primary_region = "gru"
 
+# Pull a known published image instead of building the original Dockerfile.
 [build]
-  dockerfile = "Dockerfile"
+  image = "ghcr.io/jiwoochris/artex-global:v0.3.15-global.1"
 
 [env]
   ARTEX_LANG = "es"
