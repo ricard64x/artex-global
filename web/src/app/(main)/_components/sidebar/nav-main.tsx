@@ -200,7 +200,7 @@ function InterceptPendingBadge() {
 
 function NavLinkItem({ item, isActive, showIconFallback }: NavLinkItemProps) {
   const t = useTranslations("nav");
-  const title = t(`item.${item.id}`);
+  const title = t.has(`item.${item.id}`) ? t(`item.${item.id}`) : item.title;
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild aria-disabled={item.disabled} tooltip={title} isActive={isActive}>
