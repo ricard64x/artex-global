@@ -1384,3 +1384,26 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_batch
     ON notification_deliveries(batch_id) WHERE batch_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_channel
     ON notification_deliveries(channel_id, id DESC);
+
+-- Ñandutest: delegated accounts (legacy ARTEX remains a privileged virtual admin).
+CREATE TABLE IF NOT EXISTS ndt_users (
+ id BIGSERIAL PRIMARY KEY,
+ username TEXT NOT NULL,
+ name TEXT NOT NULL,
+ email TEXT NOT NULL,
+ role TEXT NOT NULL CHECK(role IN ('operator','auditor')),
+ password_hash TEXT NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT TRUE,
+ token_version BIGINT NOT NULL DEFAULT 1,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ndt_users_username_ci ON ndt_users(lower(username));
+CREATE UNIQUE INDEX IF NOT EXISTS ndt_users_email_ci ON ndt_users(lower(email));
+CREATE TABLE IF NOT EXISTS ndt_user_audit (
+ id BIGSERIAL PRIMARY KEY,
+ actor TEXT NOT NULL,
+ action TEXT NOT NULL,
+ target_id BIGINT,
+ ip_address TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
