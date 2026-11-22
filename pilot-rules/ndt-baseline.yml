@@ -1,0 +1,20 @@
+rules:
+  - id: nandutest.python-subprocess-shell
+    patterns:
+      - pattern: subprocess.$F(..., shell=True, ...)
+    message: Revisar ejecución de subprocess con shell=True.
+    languages: [python]
+    severity: WARNING
+    metadata: {category: security, confidence: MEDIUM}
+  - id: nandutest.javascript-eval
+    pattern: eval(...)
+    message: Revisar uso de eval() en JavaScript.
+    languages: [javascript, typescript]
+    severity: WARNING
+    metadata: {category: security, confidence: MEDIUM}
+  - id: nandutest.go-insecure-tls
+    pattern: "tls.Config{..., InsecureSkipVerify: true, ...}"
+    message: Validación TLS deshabilitada.
+    languages: [go]
+    severity: WARNING
+    metadata: {category: security, confidence: HIGH}
