@@ -5,8 +5,6 @@ package server
 // denegada por defecto para ejecuciones, cambios de alcance y configuración.
 import (
  "crypto/subtle"
- "database/sql"
- "errors"
  "fmt"
  "net/http"
  "regexp"
@@ -21,6 +19,7 @@ import (
 
 type memberClaims struct {
  Username string `json:"username"`
+ Role string `json:"role"`
  Version int64 `json:"version"`
  jwt.RegisteredClaims
 }
@@ -49,7 +48,7 @@ var validManagedUsername = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.-]{2,63}$`)
 func (s *Server) issueMemberJWT(p memberIdentity) (string, error) {
  now := time.Now()
  return jwt.NewWithClaims(jwt.SigningMethodHS256, memberClaims{
-  Username: p.Username, Version: p.Version,
+  Username: p.Username, Role: p.Role, Version: p.Version,
   RegisteredClaims: jwt.RegisteredClaims{
    Subject: fmt.Sprintf("member:%d", p.ID),
    IssuedAt: jwt.NewNumericDate(now),
@@ -257,5 +256,3 @@ func (s *Server) auditUserAction(action string,id int64,r *http.Request){
  if err!=nil{ /* do not leak customer data or credentials into logs */ }
 }
 
-var _ = sql.ErrNoRows
-var _ = errors.Is
