@@ -455,23 +455,18 @@ func extractToken(r *http.Request) string {
 // requireAuth wraps h with JWT validation.
 // /api/auth/* and /api/health are exempt.
 func (s *Server) requireAuth(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		if strings.HasPrefix(p, "/api/auth/") || p == "/api/health" {
-			h.ServeHTTP(w, r)
-			return
-		}
-		tok := extractToken(r)
-		if tok == "" {
-			writeErr(w, 401, authErrUnauthorized)
-			return
-		}
-		if !s.verifyToken(tok) {
-			writeErr(w, 401, authErrTokenInvalid)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  p:=r.URL.Path
+  if strings.HasPrefix(p,"/api/auth/") || p=="/api/health" {
+   h.ServeHTTP(w,r);return
+  }
+  who,ok:=s.authPrincipal(extractToken(r))
+  if !ok{writeErr(w,401,authErrTokenInvalid);return}
+  if who.Role!="superadmin" && !(r.Method==http.MethodGet && delegatedReadAllowed(p)){
+   writeErr(w,403,"Acceso denegado: el perfil delegado solo puede consultar información autorizada");return
+  }
+  h.ServeHTTP(w,r)
+ })
 }
 
 // GET /api/auth/status — reports whether the admin password has been initialised.
@@ -586,6 +581,7 @@ func (s *Server) authInit(w http.ResponseWriter, r *http.Request) {
 // stops working (the signing key is bound to the hash); the response carries a
 // fresh token so the caller's own session continues.
 func (s *Server) authChangePassword(w http.ResponseWriter, r *http.Request) {
+	if _,ok:=s.memberFromToken(extractToken(r));ok {s.memberChangePassword(w,r);return}
 	pg := s.pg(w)
 	if pg == nil {
 		return
@@ -673,6 +669,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, authErrBadRequest)
 		return
 	}
+	if !strings.EqualFold(req.Username,"ARTEX") {s.memberLogin(w,r,req.Username,req.Password,key);return}
 	hash, ok, err := pg.GetSetting(authPassKey)
 	if err != nil {
 		writeErr(w, 503, authErrDataSourceUnavailable)
