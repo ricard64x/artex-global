@@ -33,42 +33,7 @@ var pilotSchema = struct {
 }{}
 var pilotRunMu sync.Mutex
 var pilotHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
-var pilotTicketPattern = regexp.MustCompile(`^[\pL\pN][\pL\pN\pM _./:#(),-]{7,127}package server
-
-// Ñandutest controlled pilot: administrator approval is separate from task scope.
-// Only a single, bounded, passive HTTPS HEAD request may be scheduled. No
-// exploitation, login attempts, discovery of additional hosts or model prompts
-// are run in the background by this subsystem.
-import (
-	"context"
-	"crypto/tls"
-	"database/sql"
-	"errors"
-	"net"
-	"net/http"
-	"net/netip"
-	"net/url"
-	"os"
-	"regexp"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/Autumn-27/artex/db"
-)
-
-const pilotMaxDays = 7
-const pilotMinInterval = 60
-const pilotMaxInterval = 1440
-
-var pilotSchema = struct {
-	sync.Mutex
-	ready bool
-}{}
-var pilotRunMu sync.Mutex
-var pilotHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
-)
+var pilotTicketPattern = regexp.MustCompile(`^[\pL\pN][\pL\pN\pM _./:#(),-]{7,127}$`)
 
 type pilotAuthorization struct {
 	TaskID          int64      `json:"task_id"`
