@@ -1,0 +1,20 @@
+name: Ñandutest daily source assurance
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+# Schedule must live on the default (main) branch; use the production
+# branch's strictly offline and administrator-gated reusable workflow.
+permissions:
+  contents: read
+
+concurrency:
+  group: nandutest-daily-source-assurance
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    uses: ricard64x/artex-global/.github/workflows/nandutest-pilot.yml@deploy/nandutest-production
+    permissions:
+      contents: read
