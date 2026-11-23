@@ -1,0 +1,34 @@
+name: nandutest-pilot
+on:
+  pull_request:
+    paths:
+      - "scripts/nandutest*"
+      - "scripts/test_nandutest*"
+      - "docker-compose.local-llm.yml"
+      - "Dockerfile.nandutest"
+      - "pilot-rules/**"
+      - ".github/workflows/nandutest-pilot.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nandutest-pilot
+  cancel-in-progress: true
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n scripts/nandutest-pilot.sh
+      - name: Offline unit tests
+        run: python3 -m unittest scripts/test_nandutest_pilot.py -v
+      - name: Compose configuration validation, no model download
+        env:
+          POSTGRES_PASSWORD: ci-placeholder
+          ARTEX_SETUP_TOKEN: ci-setup-placeholder
+        run: docker compose -f docker-compose.yml -f docker-compose.local-llm.yml config --quiet
+      - name: Verify no Ollama public port
+        run: |
+          ! grep -Eq '^[[:space:]]+ports:' docker-compose.local-llm.yml
+          grep -q -- '--network none' scripts/nandutest-pilot.sh

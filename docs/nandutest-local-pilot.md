@@ -62,3 +62,6 @@ La política delegada usa una lista explícita de rutas GET; nunca basta que una
 
 ## Tiempo máximo de ejecución
 Cada comprobación de código tiene un límite de 600 segundos con terminación y escalamiento, 1 GB RAM y 1 CPU; las imágenes deben estar descargadas de antemano y validadas. El LLM no ejecuta comandos del sistema directamente: únicamente interpreta resultados JSON de herramientas aisladas.
+
+## Indicadores y preflight verificables
+La verificación del modelo privado puede ejecutarse dentro de la red Docker mediante `python3 scripts/nandutest_model_preflight.py`. Para obtener KPIs reales: `python3 scripts/nandutest_metrics.py --reports data/pilot-reports --output data/pilot-reports/pilot-dashboard.json`. La precisión necesita un CSV revisado por analista con columnas `run_id,finding_id,verdict` y valores `confirmed` o `false_positive`. No confundir alertas con vulnerabilidades confirmadas. La validación CI no descarga LLM ni realiza pruebas de penetración.
