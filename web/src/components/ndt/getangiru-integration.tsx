@@ -23,11 +23,15 @@ export function GetangiruIntegration() {
   const [memoryTestResult, setMemoryTestResult] = React.useState<string | null>(null);
   const [reviewing, setReviewing] = React.useState("");
   const [modelResult, setModelResult] = React.useState<string | null>(null);
+  const [routing, setRouting] = React.useState<Awaited<ReturnType<typeof api.nandutestLLMRouting>> | null>(null);
+  const [routingBusy, setRoutingBusy] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
     try {
-      setStatus(await api.getangiruStatus());
+      const [runtime, routes] = await Promise.all([api.getangiruStatus(), api.nandutestLLMRouting()]);
+      setStatus(runtime);
+      setRouting(routes);
     } catch (error) {
       toast.error("No se pudo obtener el estado de Getangiru: " + String(error));
     } finally {
@@ -38,6 +42,20 @@ export function GetangiruIntegration() {
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  async function changeRouting(mode: "qwen" | "openai" | "qwen_failover" | "openai_failover") {
+    if (routingBusy || routing?.mode === mode) return;
+    setRoutingBusy(true);
+    try {
+      await api.setNandutestLLMRouting(mode);
+      await refresh();
+      toast.success("Se aplicó la prioridad de modelos al motor de Ñandutest.");
+    } catch (error) {
+      toast.error("No se pudo cambiar el motor: " + String(error));
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
 
   async function search() {
     if (!query.trim() || searching) return;
@@ -154,6 +172,50 @@ export function GetangiruIntegration() {
               : model?.verified
                 ? "Qwen local: disponible y probado. El motor principal sigue siendo el perfil externo; las tareas generales todavía no se procesan con Qwen."
                 : "No se ha confirmado que Qwen esté procesando las tareas generales de Ñandutest."}
+          </p>
+        </div>
+        <div className="space-y-2 rounded-lg border p-3">
+          <p className="font-semibold">Prioridad de modelos · Ñandutest</p>
+          <p className="text-muted-foreground text-xs">
+            Elegí un motor primario. El modo failover envía la solicitud a OpenAI solo cuando
+            Qwen no responde o falla; nunca ejecuta ambos modelos en paralelo.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["qwen_failover", "Qwen primario · OpenAI respaldo"],
+              ["qwen", "Solo Qwen local"],
+              ["openai_failover", "OpenAI primario · Qwen respaldo"],
+              ["openai", "Solo OpenAI"],
+            ] as const).map(([mode, label]) => (
+              <Button
+                key={mode}
+                size="sm"
+                variant={routing?.mode === mode ? "default" : "outline"}
+                disabled={routingBusy || !routing?.qwen_configured || !routing?.openai_profile}
+                onClick={() => void changeRouting(mode)}
+                aria-pressed={routing?.mode === mode}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p role="status" aria-live="polite" className="text-xs">
+            {routingBusy
+              ? "Validando conexión y aplicando el motor..."
+              : routing?.mode === "qwen_failover"
+                ? "ACTIVO: Qwen local es primario y OpenAI se utiliza como respaldo automático."
+                : routing?.mode === "qwen"
+                  ? "ACTIVO: solo Qwen local; sin respaldo externo."
+                  : routing?.mode === "openai_failover"
+                    ? "ACTIVO: OpenAI es primario y Qwen local es respaldo."
+                    : routing?.mode === "openai"
+                      ? "ACTIVO: solo OpenAI externo."
+                      : "Verificando el orden real de los modelos..."}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Las tareas con un modelo fijado explícitamente pueden conservar su selección.
+            Qwen es un modelo pequeño y limitado; si una tarea supera su capacidad, el failover
+            permite mantener el servicio, con posible consumo de la API de OpenAI.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
