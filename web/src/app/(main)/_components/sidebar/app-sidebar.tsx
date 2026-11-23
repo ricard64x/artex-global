@@ -51,7 +51,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={sidebarItems.map(group => ({...group, items: group.items.filter(item => item.id !== "users" || currentUser.role === "superadmin")}))} />
+        <NavMain
+          items={sidebarItems.map((group) => ({
+            ...group,
+            items: group.items.filter((item) => currentUser.role === "superadmin" || ["dashboard", "tasks", "findings", "assets"].includes(item.id)),
+          }))}
+        />
         {/* <NavDocuments items={data.documents} /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
