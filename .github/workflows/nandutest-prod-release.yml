@@ -42,6 +42,12 @@ on:
       - "server/getangiru_bridge_test.go"
       - "server/getangiru_feedback.go"
       - "server/server.go"
+      - "server/nandutest_pilot*.go"
+      - "web/src/app/(main)/function/tasks/detail/**"
+      - "web/src/lib/nandutest-pilot.ts"
+      - "scripts/nandutest_pilot_lab.py"
+      - "scripts/test_nandutest_pilot_lab.py"
+      - "docs/nandutest-controlled-pilot.md"
       - "web/src/components/ndt/getangiru-integration.tsx"
       - "web/src/lib/getangiru.ts"
       - "docs/nandutest-getangiru-bridge.md"
@@ -107,6 +113,7 @@ jobs:
         run: |
           bash -n scripts/nandutest-pilot.sh
           python3 -m unittest scripts/test_nandutest_pilot.py -v
+          python3 -m unittest discover -s scripts -p 'test_nandutest_pilot_lab.py' -v
           POSTGRES_PASSWORD=ci-placeholder docker compose -f docker-compose.yml -f docker-compose.local-llm.yml config --quiet
 
   deploy:

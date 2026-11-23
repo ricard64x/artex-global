@@ -47,6 +47,7 @@ import { FindingsTab } from "./_tabs/findings-tab";
 import { GraphTab } from "./_tabs/graph-tab";
 import { InterceptTab } from "./_tabs/intercept-tab";
 import { OverviewTab } from "./_tabs/overview-tab";
+import { PilotTab } from "./_tabs/pilot-tab";
 import { ReportTab } from "./_tabs/report-tab";
 import { RetestsTab } from "./_tabs/retests-tab";
 import { SessionsTab } from "./_tabs/sessions-tab";
@@ -54,6 +55,7 @@ import { SessionsTab } from "./_tabs/sessions-tab";
 const TAB_VALUES = [
   "sessions",
   "overview",
+  "pilot",
   "graph",
   "broadcast",
   "findings",
@@ -403,7 +405,7 @@ function TaskDetailInner() {
           <TabsList variant="default" className="min-w-max">
             {TAB_VALUES.map((value) => (
               <TabsTrigger key={value} value={value}>
-                {t(`tabs.${value}`)}
+                {value === "pilot" ? "Piloto continuo" : t(`tabs.${value}`)}
                 {value === "intercept" && interceptPendingCount > 0 && (
                   <span className="ml-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white">
                     {interceptPendingCount > 99 ? "99+" : interceptPendingCount}
@@ -422,6 +424,9 @@ function TaskDetailInner() {
         </TabsContent>
         <TabsContent value="overview" className="mt-0">
           <OverviewTab taskId={id} />
+        </TabsContent>
+        <TabsContent value="pilot" className="mt-0">
+          <PilotTab taskId={id} />
         </TabsContent>
         <TabsContent value="graph" className="mt-0">
           <GraphTab taskId={id} />

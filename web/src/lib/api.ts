@@ -282,6 +282,18 @@ export const api = {
     get<import("@/lib/getangiru").GetangiruReviewQueue>(
       "/runtime/getangiru/review-queue?task_id=" + encodeURIComponent(taskId),
     ),
+  getTaskPilot: (taskId: string | number) =>
+    get<import("@/lib/nandutest-pilot").PilotStatus>("/tasks/" + encodeURIComponent(taskId) + "/pilot"),
+  authorizeTaskPilot: (taskId: string | number, data: import("@/lib/nandutest-pilot").PilotApprovalRequest) =>
+    post<{ ok: boolean; message: string }>("/tasks/" + encodeURIComponent(taskId) + "/pilot/authorize", data),
+  revokeTaskPilot: (taskId: string | number) =>
+    post<{ ok: boolean; enabled: boolean }>("/tasks/" + encodeURIComponent(taskId) + "/pilot/revoke"),
+  runTaskPilotLab: (taskId: string | number) =>
+    post<import("@/lib/nandutest-pilot").PilotLabResult>("/tasks/" + encodeURIComponent(taskId) + "/pilot/lab", {
+      authorized: true,
+    }),
+  checkTaskPilot: (taskId: string | number) =>
+    post<{ outcome: string; task_id: number; note: string }>("/tasks/" + encodeURIComponent(taskId) + "/pilot/check"),
   getangiruAutomaticMetrics: (taskId?: number) =>
     get<import("@/lib/getangiru").GetangiruAutomaticMetrics>(
       "/runtime/getangiru/metrics" + (taskId ? "?task_id=" + encodeURIComponent(taskId) : ""),

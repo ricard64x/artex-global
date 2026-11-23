@@ -37,8 +37,13 @@ RUN npm ci --ignore-scripts --omit=dev --prefix /app/skills/api-recon/scripts \
   && NODE_PATH=/app/skills/api-recon/scripts/node_modules node -e 'require("puppeteer-core")'
 ENV CHROMIUM=/usr/bin/chromium
 ENV NODE_PATH=/app/skills/api-recon/scripts/node_modules
+COPY --chown=0:0 scripts/nandutest_pilot_lab.py /usr/local/lib/nandutest/pilot_lab.py
 COPY --chown=10001:10001 scripts/nandutest_model_preflight.py /app/scripts/nandutest_model_preflight.py
 COPY --chown=10001:10001 scripts/nandutest_metrics.py /app/scripts/nandutest_metrics.py
+# Fail the image build if the isolated eight-phase control-plane canary fails.
+RUN chmod 0444 /usr/local/lib/nandutest/pilot_lab.py \
+  && gosu artex python3 /usr/local/lib/nandutest/pilot_lab.py --authorize-lab > /tmp/nandutest_lab_smoke.json \
+  && rm -f /tmp/nandutest_lab_smoke.json
 RUN chmod +x /app/start.sh /app/artex \
   && mkdir -p /app/data \
   && chown -R 10001:10001 /app \
