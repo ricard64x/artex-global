@@ -133,7 +133,7 @@ func memberPasswordOK(password string) bool {
 func managedRole(role string) bool {return role=="operator"||role=="auditor"}
 
 func (s *Server) memberLogin(w http.ResponseWriter,r *http.Request,username,password,key string) {
- if !delegatedPilotEnabled() { writeErr(w,403,"Las cuentas delegadas se habilitarán después de validar el aislamiento por empresa");return }
+ if !delegatedPilotEnabled() { s.limiter().fail(key);writeErr(w,401,authErrBadCredential);return }
  pg:=s.m.PG()
  var p memberIdentity
  var hashed string
