@@ -124,7 +124,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           attempted=0
-          previous_image="$(flyctl machine status 48ed55df52e648 -a artex-global-py --json | jq -r '.config.image // empty' || true)"
+          # flyctl's machine-status JSON may expose Config.Image rather than config.image.
+          # Inspect string values safely, but never roll back to unrelated/legacy images.
+          previous_image="$(flyctl machine status 48ed55df52e648 -a artex-global-py --json | jq -r '[.. | strings | select(startswith("registry.fly.io/artex-global-py:deployment-"))][0] // empty' || true)"
           onexit() {
             rc=$?
             if [ "$rc" -ne 0 ] && [ "$attempted" -eq 1 ]; then
@@ -185,11 +187,11 @@ jobs:
             exit 1
           fi
           login_html="$(curl -fsS --max-time 15 https://artex-global-py.fly.dev/login)"
-          if echo "$login_html" | grep -q 'id="__next_error__"'; then
+          if [[ "$login_html" == *'id="__next_error__"'* ]]; then
             echo "::error::Login returned Next error shell"
             exit 1
           fi
-          echo "$login_html" | grep -q '<html' || { echo "::error::Login HTML missing"; exit 1; }
+          [[ "$login_html" == *'<html'* ]] || { echo "::error::Login HTML missing"; exit 1; }
           echo "Root redirect and login HTML verified"
           assert_unauthenticated_401() {
             local method="$1" path="$2" code=""
