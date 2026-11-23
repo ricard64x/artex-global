@@ -83,3 +83,7 @@ Tras `record_fact`, el resumen autorizado se encola de forma idempotente en Post
 - Para la tarea 5 cerrada, la incorporación de hechos históricos requiere selección y revisión explícita; no se reinician automáticamente las pruebas.
 
 **Riesgos residuales:** Getangiru debe permanecer despierto para ofrecer servicio continuo; la detección de datos sensibles mediante expresiones regulares no sustituye clasificación DLP integral. Los eventos de memoria reflejan disponibilidad y utilización, **no** precisión del modelo ni porcentaje real de vulnerabilidades detectadas.
+
+### Activación productiva de variables (23/11/2026)
+
+Las variables `GETANGIRU_AUTO_READ_ENABLED` y `GETANGIRU_AUTO_WRITE_ENABLED` se guardan como secretos en Fly.io y **requieren una nueva revisión de la máquina mediante el procedimiento protegido de despliegue**. Reiniciar un proceso existente sin comprobar su entorno no constituye prueba de activación. Validar desde el contenedor que ambas variables sean `1`, y comprobar una lectura por tarea y una escritura con las credenciales distintas. Conservar el interruptor de emergencia: ambas pueden ajustarse a `0` y reimplementarse sin modificar el resto de los proyectos. Para memorias históricas, ingresar solo resúmenes elegibles y mantener `pendiente` hasta revisión humana.
