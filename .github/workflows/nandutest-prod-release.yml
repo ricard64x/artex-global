@@ -109,11 +109,16 @@ jobs:
         run: |
           set -Eeuo pipefail
           attempted=0
+          previous_image="$(flyctl machine status 48ed55df52e648 -a artex-global-py --json | jq -r '.config.image // empty' || true)"
           onexit() {
             rc=$?
             if [ "$rc" -ne 0 ] && [ "$attempted" -eq 1 ]; then
-              echo "::error::Release health failed; restoring previously pinned image"
-              flyctl deploy --app artex-global-py --config fly.toml --remote-only --ha=false --strategy immediate --yes || true
+              if [[ "$previous_image" == registry.fly.io/artex-global-py:deployment-* ]]; then
+                echo "::warning::Release failed. Restoring last known Ñandutest image."
+                flyctl deploy --app artex-global-py --config fly.nandutest.toml --image "$previous_image" --remote-only --ha=false --strategy immediate --yes || true
+              else
+                echo "::error::Release verification failed. Previous image is not verified Ñandutest; refusing legacy ARTEX rollback. Inspect current instance."
+              fi
             fi
             exit "$rc"
           }
@@ -158,21 +163,24 @@ jobs:
           fi
           echo "$login_html" | grep -q '<html' || { echo "::error::Login HTML missing"; exit 1; }
           echo "Root redirect and login HTML verified"
-          protected="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://artex-global-py.fly.dev/api/users)"
-          if [ "$protected" != "401" ]; then
-            echo "::error::User-admin API is not protected (HTTP $protected)"
-            exit 1
-          fi
+          assert_unauthenticated_401() {
+            local method="$1" path="$2" code=""
+            for i in $(seq 1 12); do
+              code="$(curl -sS --connect-timeout 5 --max-time 20 -o /dev/null -w '%{http_code}' -X "$method" "https://artex-global-py.fly.dev$path" || true)"
+              [ "$code" = "401" ] && return 0
+              echo "Auth check retry $i: $path returned HTTP ${code:-unavailable}"
+              sleep 5
+            done
+            echo "::error::Protected route $path did not return 401 after retries (last HTTP $code)"
+            return 1
+          }
+          assert_unauthenticated_401 GET /api/users
           for path in /api/runtime/getangiru /api/runtime/getangiru/search /api/runtime/getangiru/feedback /api/runtime/shared-model/test; do
             method=GET
             case "$path" in
               */search|*/feedback|*/test) method=POST ;;
             esac
-            code="$(curl -sS --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' -X "$method" "https://artex-global-py.fly.dev$path")"
-            if [ "$code" != "401" ]; then
-              echo "::error::Getangiru bridge route $path not access-controlled: HTTP $code"
-              exit 1
-            fi
+            assert_unauthenticated_401 "$method" "$path"
           done
           attempted=0
           flyctl status --app artex-global-py
