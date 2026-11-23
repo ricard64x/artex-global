@@ -765,7 +765,7 @@ export default function LLMPage() {
           hint: m.last_error,
         };
       }
-      return { label: t("health.ok"), cls: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400" };
+      return { label: t("health.ok"), cls: "border-border text-muted-foreground" };
     },
     [t],
   );
