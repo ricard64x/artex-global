@@ -312,10 +312,19 @@ test -f "$OUTDIR/scripts/package.json" && test -f "$OUTDIR/scripts/package-lock.
   echo "ERROR: falta el manifiesto Node en scripts/. No ejecutar npm." >&2
   exit 1
 }
-npm ci --ignore-scripts --prefix "$OUTDIR/scripts"
+# Las dependencias son preinstaladas en el contenedor para evitar npm por tarea.
+if ! node -e 'require("puppeteer-core")' >/dev/null 2>&1; then
+  echo "PENDIENTE: puppeteer-core no está disponible en la imagen de la aplicación." >&2
+  exit 2
+fi
 # Si no hay navegador compatible, no se declara cubierta la fase dinámica.
 command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 || {
   echo "PENDIENTE: Chromium no disponible. Conservar resultados estáticos y registrar cobertura dinámica no ejecutada." >&2
+  exit 2
+}
+# Prueba local desconectada; no navega al objetivo.
+node "$SKILL_ROOT/scripts/browser_smoke.js" || {
+  echo "PENDIENTE: Chromium está presente pero no arranca correctamente." >&2
   exit 2
 }
 node "$OUTDIR/scripts/runtime_harvest.js" "$OUTDIR/config.json"

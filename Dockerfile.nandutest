@@ -23,18 +23,27 @@ FROM ghcr.io/jiwoochris/artex-global:v0.3.15-global.1
 RUN apt-get update \
   && sed -i 's/Components: main/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
   && apt-get update \
-  && apt-get install -y --no-install-recommends gosu nikto whatweb sslscan gobuster ffuf \
+  && apt-get install -y --no-install-recommends gosu nikto whatweb sslscan gobuster ffuf chromium \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --home /app --shell /usr/sbin/nologin artex
 WORKDIR /app
 COPY --from=gobuild --chown=10001:10001 /out/artex /app/artex
 COPY --chown=10001:10001 start.sh /app/start.sh
 COPY --chown=10001:10001 skills/ /app/skills/
+# Install browser automation dependencies once at image build, not per task.
+# The worker runs a task-specific copy; Node resolves the locked dependencies.
+RUN npm ci --ignore-scripts --omit=dev --prefix /app/skills/api-recon/scripts \
+  && test -x /usr/bin/chromium \
+  && NODE_PATH=/app/skills/api-recon/scripts/node_modules node -e 'require("puppeteer-core")'
+ENV CHROMIUM=/usr/bin/chromium
+ENV NODE_PATH=/app/skills/api-recon/scripts/node_modules
 COPY --chown=10001:10001 scripts/nandutest_model_preflight.py /app/scripts/nandutest_model_preflight.py
 COPY --chown=10001:10001 scripts/nandutest_metrics.py /app/scripts/nandutest_metrics.py
 RUN chmod +x /app/start.sh /app/artex \
   && mkdir -p /app/data \
-  && chown -R 10001:10001 /app
+  && chown -R 10001:10001 /app \
+  && chmod -R a-w /app/skills/api-recon \
+  && gosu artex node /app/skills/api-recon/scripts/browser_smoke.js
 COPY scripts/nandutest-entrypoint.sh /app/nandutest-entrypoint.sh
 RUN chmod +x /app/nandutest-entrypoint.sh
 ENV ARTEX_LANG=es
