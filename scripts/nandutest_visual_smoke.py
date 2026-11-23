@@ -143,7 +143,7 @@ def run_ui(browser, role, width, height, mobile=False):
         assert bounding and bounding["x"] >= -1 and bounding["x"] + bounding["width"] <= width + 2, (
             "Button clipped outside viewport", bounding, width
         )
-        page.screenshot(path=str(OUT / ("mobile" if mobile else "desktop") + "-inactive.png"), full_page=False)
+        page.screenshot(path=str(OUT / (("mobile" if mobile else "desktop") + "-inactive.png")), full_page=False)
 
         button.click()
         page.get_by_text("Dominio exacto aprobado").first.wait_for(state="visible", timeout=10000)
