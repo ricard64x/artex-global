@@ -14,7 +14,12 @@
 La app actual `artex-global-py` (Fly.io, 1 vCPU y 1 GB RAM) **no ejecuta un LLM 4B**. No aumentarle recursos ni desplegar el LLM sobre esa máquina. Para comenzar, usar un **host aislado** con aproximadamente 8 GB RAM disponibles (12–16 GB recomendables para el sistema operativo y otros servicios), 2–4 vCPU, almacenamiento local y sin publicación pública del puerto 11434. El `mem_limit: 6g` es un límite configurable, no consumo medido ni garantía de performance.
 
 ## Descarga y arranque en infraestructura privada
-Desde la raíz del fork, con Docker + Compose instalados:
+Desde la raíz del fork, con Docker + Compose instalados. `Dockerfile.nandutest` construye el binario y la interfaz **desde este fork** (no desde upstream). El proceso se ejecuta como usuario no privilegiado UID 10001. Preparar el directorio de datos local con permisos para ese usuario (sin cambiar permisos del volumen productivo):
+```bash
+mkdir -p data
+sudo chown -R 10001:10001 data
+```
+Después:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up -d postgres ollama
 docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec ollama ollama pull qwen3:4b
@@ -49,5 +54,5 @@ Repetir el mismo conjunto de proyectos y conjunto de pruebas con la misma versi�
 2. Pruebas E2E de login multiusuario, expiración/revocación, RBAC, IDOR y acceso a rutas GET con datos sensibles.
 3. Verificar seguridad del contenedor: autenticación admin, aislamiento de red, protección de volúmenes y secretos; evitar usar `latest` en producción, fijar digests auditados.
 4. Añadir control de objetivos y autorización documentada por usuario, cuota, pausa/cancelación, evidencia, aprobación para pruebas activas.
-5. Construir **imagen propia del fork**; `fly.toml` todavía usa el binario upstream y **no despliega estos cambios**.
+5. Construir y validar la **imagen propia del fork** mediante `Dockerfile.nandutest`; `fly.toml` todavía usa el binario upstream y **no despliega estos cambios**.
 6. Mantener la app Fly y volumen existentes sin alteraciones hasta que el piloto esté validado.
