@@ -58,3 +58,9 @@ Revertir con GETANGIRU_READ_ENABLED=0 y retirando la configuración del modelo. 
 - Getangiru: `GET /v1/memories/search` mediante `sprite-getangiru._peer.internal:18080` respondió HTTP 200 con `space=nandutest`, token de lectura y `items=[]` en la prueba sintética.
 - Qwen: la ruta privada `sprite-tenondera-integrado._peer.internal:8080/v1/models` respondió 401 sin credencial, validando protección y conectividad. Prueba autenticada pendiente de incorporación de secretos nuevos a release.
 - No activar por afirmación de despliegue; confirmar secret `NANDUTEST_SHARED_LLM_API_KEY` dentro de instancia, inferencia real desde Fly y controles RBAC. Se mantiene fallback y rollback.
+
+### Conectividad operativa estable — 23/11/2026
+
+Las caídas del túnel 6PN de Getangiru se debían a la suspensión por inactividad del Sprite (`cold`). Se instaló `nandutest-memory-availability` con heartbeat de la Tasks API oficial (`nandutest-memory-6pn`, TTL 5 minutos, renovación cada 45 segundos). Verificados: Getangiru en `running`, 10/10 consultas autenticadas directas HTTP 200, HTTP 401 sin autorización, HTTP 422 fuera del espacio `nandutest` y escritura no soportada. La ruta alterna temporal en Tenonderã fue eliminada; se usa directamente `sprite-getangiru._peer.internal:18080`. El secreto `GETANGIRU_READ_ENABLED=1` fue preparado en Fly, pendiente de inclusión efectiva mediante release protegido y validación de UI.
+
+Impacto: Getangiru se mantiene activo y consume CPU/RAM facturables mientras presta el servicio. Reversión: deshabilitar lectura y detener `nandutest-memory-availability` para permitir suspensión.
