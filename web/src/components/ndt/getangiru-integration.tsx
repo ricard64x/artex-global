@@ -179,7 +179,11 @@ export function GetangiruIntegration() {
               <ShieldCheck className="size-4" />
               {testing ? "Probando Qwen (máx. 30 s)..." : "Probar inferencia compartida"}
             </Button>
-            {modelResult && <p role="status" aria-live="polite" className="text-muted-foreground text-xs">{modelResult}</p>}
+            {modelResult && (
+              <p role="status" aria-live="polite" className="text-muted-foreground text-xs">
+                {modelResult}
+              </p>
+            )
           </div>
         </div>
 
