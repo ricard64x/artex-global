@@ -27,6 +27,12 @@ func (s *Server) webuiHandler() http.Handler {
 		panic(err)
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The static Next export writes its not-found shell as /index.html.
+		// Send the app entry point to the actual login route instead.
+		if r.URL.Path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
 		p := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if p == "" {
 			p = "index.html"
