@@ -460,6 +460,7 @@ func (s *Server) requireAuth(h http.Handler) http.Handler {
   if strings.HasPrefix(p,"/api/auth/") || p=="/api/health" {
    h.ServeHTTP(w,r);return
   }
+  if extractToken(r)==""{writeErr(w,401,authErrUnauthorized);return}
   who,ok:=s.authPrincipal(extractToken(r))
   if !ok{writeErr(w,401,authErrTokenInvalid);return}
   if who.Role!="superadmin" && !(r.Method==http.MethodGet && delegatedReadAllowed(p)){
