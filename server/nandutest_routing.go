@@ -6,6 +6,7 @@ import (
     "context"
     "encoding/json"
     "fmt"
+    "io"
     "net/http"
     "os"
     "strings"
@@ -72,7 +73,7 @@ func checkQwenBeforeActivation(ctx context.Context, cfg *localModelService) erro
     defer resp.Body.Close()
     if resp.StatusCode!=200{return fmt.Errorf("Qwen rechazó inferencia (HTTP %d)",resp.StatusCode)}
     var reply struct {Choices []struct {Message struct {Content string `json:"content"`} `json:"message"`} `json:"choices"`}
-    if json.NewDecoder(http.MaxBytesReader(nil,resp.Body,32768)).Decode(&reply)!=nil || len(reply.Choices)==0 || strings.TrimSpace(reply.Choices[0].Message.Content)=="" {
+    if json.NewDecoder(io.LimitReader(resp.Body,32768)).Decode(&reply)!=nil || len(reply.Choices)==0 || strings.TrimSpace(reply.Choices[0].Message.Content)=="" {
        return fmt.Errorf("Qwen no devolvió una respuesta válida")
     }
     return nil
@@ -85,27 +86,34 @@ func (s *Server) setNandutestRouting(w http.ResponseWriter,r *http.Request) {
     case "qwen","openai","qwen_failover","openai_failover":
     default:writeErr(w,422,"Elegí Qwen, OpenAI o uno de los dos modos de failover");return
     }
+
+    if err:=s.applyNandutestRouting(r.Context(),in.Mode);err!=nil {
+        writeErr(w,409,err.Error());return
+    }
+    writeJSON(w,200,s.routingStatus())
+}
+func (s *Server) applyNandutestRouting(ctx context.Context, mode string) error {
     nandutestRoutingMu.Lock()
     defer nandutestRoutingMu.Unlock()
     cfg,errText:=sharedModelSettings()
-    if cfg==nil {writeErr(w,503,errText);return}
+    if cfg==nil {return fmt.Errorf("%s",errText)}
     profiles,err:=s.m.pg.ListProfiles()
-    if err!=nil {writeErr(w,500,"No se pudo consultar perfiles");return}
+    if err!=nil {return fmt.Errorf("No se pudo consultar perfiles")}
     local,external:=findRoutingProfiles(profiles,cfg)
-    if external==nil {writeErr(w,409,"No hay perfil OpenAI con credencial registrada; se conserva el modelo actual");return}
+    if external==nil {return fmt.Errorf("No hay perfil OpenAI con credencial registrada; se conserva el modelo actual")}
     openai,err:=s.m.pg.ProfileByID(external.ID)
-    if err!=nil || openai==nil || len(openai.APIKey)<8 {writeErr(w,409,"OpenAI no dispone de una credencial válida");return}
-    localPrimary:=strings.HasPrefix(in.Mode,"qwen")
-    failover:=strings.HasSuffix(in.Mode,"_failover")
+    if err!=nil || openai==nil || len(openai.APIKey)<8 {return fmt.Errorf("OpenAI no dispone de una credencial válida")}
+    localPrimary:=strings.HasPrefix(mode,"qwen")
+    failover:=strings.HasSuffix(mode,"_failover")
     if localPrimary {
-        if err:=checkQwenBeforeActivation(r.Context(),cfg);err!=nil {writeErr(w,503,err.Error());return}
+        if err:=checkQwenBeforeActivation(ctx,cfg);err!=nil {return err}
     }
     // Only the explicit local+OpenAI pair may participate in automatic fallback.
     // Do not unexpectedly route authorized prompts to unrelated provider profiles.
     if failover {
         for _,p:=range profiles {
             if p.APIKeyHint!="" && !p.PoolExclude && p.ID!=external.ID && (local==nil || p.ID!=local.ID) {
-                writeErr(w,409,"Hay otros proveedores habilitados para failover. Excluilos del pool antes de activar el par Qwen/OpenAI.");return
+                return fmt.Errorf("Hay otros proveedores habilitados para failover; excluilos antes de activar Qwen/OpenAI")
             }
         }
     }
@@ -115,25 +123,26 @@ func (s *Server) setNandutestRouting(w http.ResponseWriter,r *http.Request) {
             Model:cfg.model,APIKey:cfg.token,Streaming:false,MaxTokens:256,
             ContextWindowK:4,RatePerMinute:8,RatePerSecond:0.13,Priority:100,
         })
-        if err!=nil {writeErr(w,500,"No se pudo registrar Qwen");return}
+        if err!=nil {return fmt.Errorf("No se pudo registrar Qwen: %w",err)}
         local=&db.LLMProfile{ID:id}
     }
     target:=external.ID
     if localPrimary {target=local.ID}
-    if err:=s.m.pg.SetActiveProfile(target);err!=nil {writeErr(w,500,"No se pudo cambiar el modelo primario");return}
-    if err:=s.m.SetLLMPoolEnabled(failover);err!=nil {writeErr(w,500,"No se pudo ajustar failover");return}
-    if err:=s.m.SetLLMPoolBindFallback(failover);err!=nil {writeErr(w,500,"No se pudo ajustar failover de agentes fijados");return}
+    if err:=s.m.pg.SetActiveProfile(target);err!=nil {return fmt.Errorf("No se pudo cambiar el modelo primario: %w",err)}
+    if err:=s.m.SetLLMPoolEnabled(failover);err!=nil {return fmt.Errorf("No se pudo ajustar failover: %w",err)}
+    if err:=s.m.SetLLMPoolBindFallback(failover);err!=nil {return fmt.Errorf("No se pudo ajustar failover de agentes fijados: %w",err)}
     s.invalidateProfileAgents()
     s.reapplyActiveProfile()
-    writeJSON(w,200,s.routingStatus())
+    return nil
 }
 
-// Supported opt-in bootstrap for guarded deployment. Keep disabled by default.
-// No external account or secret is accepted through the request URL.
+// Explicit, reversible opt-in rollout. No switching without verified private Qwen.
 func (s *Server) bootstrapNandutestRouting() {
-    if os.Getenv("NANDUTEST_ROUTING_BOOTSTRAP") != "qwen_failover" {return}
-    // Bootstrapping still requires an explicit live inference, via the same
-    // private gateway validation, before changing production routing.
-    // Intentional no-op when the application is started without an authenticated
-    // rollout procedure; operators use the routing API to commit this change.
+    if os.Getenv("NANDUTEST_ROUTING_BOOTSTRAP") != "qwen_failover" || s.m==nil || s.m.pg==nil {return}
+    if err:=s.applyNandutestRouting(context.Background(),"qwen_failover");err!=nil {
+        // Never lose the existing external provider when local validation fails.
+        fmt.Printf("[routing] local-primary bootstrap refused: %v\\n",err)
+    } else {
+        fmt.Println("[routing] local Qwen primary with OpenAI fallback activated")
+    }
 }
