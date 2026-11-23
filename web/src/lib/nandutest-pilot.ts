@@ -18,10 +18,12 @@ export interface PilotAuthorization {
   last_latency_ms: number | null;
   last_error: string | null;
   checks: number;
+  failure_streak?: number;
 }
 export interface PilotStatus {
   task_id: number;
   pilot_enabled: boolean;
+  automation_enabled?: boolean;
   approval: PilotAuthorization | null;
   scope_error: string;
   scoped_domains: string[];

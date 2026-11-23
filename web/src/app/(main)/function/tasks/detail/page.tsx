@@ -38,6 +38,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { auth } from "@/lib/auth";
 import type { LLMProfile, Task } from "@/lib/types";
 
 import { AssetsTab } from "./_tabs/assets-tab";
@@ -47,6 +48,7 @@ import { FindingsTab } from "./_tabs/findings-tab";
 import { GraphTab } from "./_tabs/graph-tab";
 import { InterceptTab } from "./_tabs/intercept-tab";
 import { OverviewTab } from "./_tabs/overview-tab";
+import { PilotQuickControl, useTaskPilot } from "./_tabs/pilot-controls";
 import { PilotTab } from "./_tabs/pilot-tab";
 import { ReportTab } from "./_tabs/report-tab";
 import { RetestsTab } from "./_tabs/retests-tab";
@@ -218,6 +220,26 @@ function TaskDetailInner() {
   const [interceptPendingCount, setInterceptPendingCount] = React.useState(0);
   const [profiles, setProfiles] = React.useState<LLMProfile[]>([]);
   const [archiving, setArchiving] = React.useState(false);
+  const canManagePilot = auth.getCurrentUser()?.role === "superadmin";
+  const pilot = useTaskPilot(id, canManagePilot && task !== null);
+  const pilotPanel = React.useRef<HTMLDivElement>(null);
+  const [pilotFocus, setPilotFocus] = React.useState(0);
+
+  React.useEffect(() => {
+    if (tab !== "pilot" || pilotFocus === 0) return;
+    pilotPanel.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    pilotPanel.current?.focus({ preventScroll: true });
+  }, [tab, pilotFocus]);
+
+  const openPilot = () => {
+    setTab("pilot");
+    setPilotFocus((value) => value + 1);
+    void pilot.refresh();
+  };
+  const navigateTab = (value: string) => {
+    setTab(value);
+    if (value === "pilot") void pilot.refresh();
+  };
 
   React.useEffect(() => {
     api
@@ -353,7 +375,7 @@ function TaskDetailInner() {
   );
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col gap-0">
+    <Tabs value={tab} onValueChange={navigateTab} className="flex flex-1 flex-col gap-0">
       {/* Top fixed area */}
       <header className="sticky top-0 z-10 flex flex-col gap-2 border-b bg-background/95 px-4 py-2.5 backdrop-blur lg:px-6">
         <div className="flex items-center gap-2">
@@ -400,12 +422,13 @@ function TaskDetailInner() {
           </Button>
         </div>
         <p className="truncate text-xs text-muted-foreground">{task.goal}</p>
+        {canManagePilot && <PilotQuickControl pilot={pilot} onOpen={openPilot} />}
         {/* Tabs */}
         <div className="no-scrollbar min-w-0 overflow-x-auto">
           <TabsList variant="default" className="min-w-max">
             {TAB_VALUES.map((value) => (
               <TabsTrigger key={value} value={value}>
-                {value === "pilot" ? "Piloto continuo" : t(`tabs.${value}`)}
+                {value === "pilot" ? "Piloto automático" : t(`tabs.${value}`)}
                 {value === "intercept" && interceptPendingCount > 0 && (
                   <span className="ml-1.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold leading-none text-white">
                     {interceptPendingCount > 99 ? "99+" : interceptPendingCount}
@@ -426,7 +449,15 @@ function TaskDetailInner() {
           <OverviewTab taskId={id} />
         </TabsContent>
         <TabsContent value="pilot" className="mt-0">
-          <PilotTab taskId={id} />
+          <div ref={pilotPanel} tabIndex={-1} className="scroll-mt-72 outline-none">
+            {canManagePilot ? (
+              <PilotTab key={id} taskId={id} pilot={pilot} onNavigate={navigateTab} />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Solo el administrador puede activar y gestionar el piloto automático.
+              </p>
+            )}
+          </div>
         </TabsContent>
         <TabsContent value="graph" className="mt-0">
           <GraphTab taskId={id} />

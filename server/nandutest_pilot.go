@@ -230,7 +230,7 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	present := err == nil
-	active := present && a.Enabled && time.Now().Before(a.ExpiresAt)
+	active := present && a.Enabled && time.Now().Before(a.ExpiresAt) && !auditDisabled()
 	scopeErr := ""
 	if active {
 		if e := s.pilotAllowedDomain(id, a.Domain); e != nil {
@@ -333,7 +333,8 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"task_id": id, "pilot_enabled": active, "approval": approval, "scope_error": scopeErr,
-		"scoped_domains": domainList, "mode": "passive_https_only", "history": history, "lab": lab,
+		"automation_enabled": !auditDisabled(),
+		"scoped_domains":     domainList, "mode": "passive_https_only", "history": history, "lab": lab,
 		"next_activity": "Las pruebas intrusivas requieren otra aprobación explícita; este piloto solo verifica HTTPS público.",
 		"phases":        phase, "metrics": map[string]any{
 			"tool_results": activities, "tool_errors": failedTools,

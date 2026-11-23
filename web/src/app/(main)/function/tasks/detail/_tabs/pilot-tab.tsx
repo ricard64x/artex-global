@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import type { PilotStatus } from "@/lib/nandutest-pilot";
+
+import type { TaskPilotState } from "./pilot-controls";
 
 const phaseMessage: Record<string, string> = {
   aprobado: "Alcance aprobado",
@@ -35,9 +36,16 @@ function fmtDate(value?: string | null) {
 function num(v?: number) {
   return (v ?? 0).toLocaleString("es-PY");
 }
-export function PilotTab({ taskId }: { taskId: string }) {
-  const [status, setStatus] = React.useState<PilotStatus | null>(null);
-  const [loading, setLoading] = React.useState(true);
+export function PilotTab({
+  taskId,
+  pilot,
+  onNavigate,
+}: {
+  taskId: string;
+  pilot: TaskPilotState;
+  onNavigate: (tab: string) => void;
+}) {
+  const { status, loading, error, refresh } = pilot;
   const [working, setWorking] = React.useState(false);
   const [ticket, setTicket] = React.useState("");
   const [domain, setDomain] = React.useState("");
@@ -45,23 +53,15 @@ export function PilotTab({ taskId }: { taskId: string }) {
   const [interval, setInterval] = React.useState("60");
   const [labResult, setLabResult] = React.useState<import("@/lib/nandutest-pilot").PilotLabResult | null>(null);
 
-  const refresh = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.getTaskPilot(taskId);
-      setStatus(data);
-      if (data.scoped_domains.length > 0) {
-        setDomain((prev) => (prev && data.scoped_domains.includes(prev) ? prev : data.scoped_domains[0]));
-      }
-    } catch (err) {
-      toast.error("No se pudo cargar el piloto: " + String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [taskId]);
   React.useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const domains = status?.scoped_domains ?? [];
+    const approvedDomain = status?.approval?.domain ?? "";
+    setDomain((previous) => {
+      if (domains.includes(previous)) return previous;
+      if (domains.includes(approvedDomain)) return approvedDomain;
+      return domains[0] ?? "";
+    });
+  }, [status]);
 
   const authorize = async () => {
     if (!domain || !ticket.trim() || ticket.trim().length < 8) {
@@ -83,7 +83,7 @@ export function PilotTab({ taskId }: { taskId: string }) {
         expires_at: new Date(Date.now() + hrs * 3600 * 1000).toISOString(),
         interval_minutes: mins,
       });
-      toast.success("Piloto pasivo autorizado: se aplicarán las restricciones de alcance y frecuencia");
+      toast.success("Piloto automático activado. Consultá la próxima comprobación en su estado.");
       await refresh();
     } catch (err) {
       toast.error("Autorización rechazada: " + String(err));
@@ -110,7 +110,7 @@ export function PilotTab({ taskId }: { taskId: string }) {
     setWorking(true);
     try {
       await api.revokeTaskPilot(taskId);
-      toast.success("Autorización revocada");
+      toast.success("Piloto automático detenido. El historial se conserva.");
       await refresh();
     } catch (err) {
       toast.error(String(err));
@@ -131,11 +131,134 @@ export function PilotTab({ taskId }: { taskId: string }) {
     }
   };
   const m = status?.metrics;
-  const approved = Boolean(status?.pilot_enabled);
+  const approved = Boolean(
+    status?.pilot_enabled && status.approval && Date.parse(status.approval.expires_at) > Date.now() && !error,
+  );
+  const canAuthorize = Boolean(status && !loading && !error && status.automation_enabled !== false);
   const phases = status?.phases ?? [];
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{approved ? "Gestionar piloto automático" : "Activar piloto automático"}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Elegí el dominio, la frecuencia y el vencimiento, y registrá la referencia de autorización. El piloto
+            seguirá comprobando esta revisión aunque cierres la página.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">
+              El dominio debe estar en el alcance y tener permiso explícito.
+            </span>
+            <Button type="button" variant="link" size="sm" onClick={() => onNavigate("overview")}>
+              Configurar alcance
+            </Button>
+            <Button type="button" variant="link" size="sm" onClick={() => onNavigate("intercept")}>
+              Revisar permisos
+            </Button>
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              No se pudo verificar el estado: {error}
+            </p>
+          )}
+          {status?.automation_enabled === false && (
+            <p role="alert" className="text-sm text-destructive">
+              El servicio tiene deshabilitada la programación del piloto.
+            </p>
+          )}
+          {status && status.scoped_domains.length === 0 && (
+            <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+              Primero agregá el dominio de esta revisión en Configurar alcance. Luego volvé a esta pestaña.
+            </p>
+          )}
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-1 text-sm">
+              <span>Dominio exacto aprobado</span>
+              <select
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                className="w-full rounded-md border bg-background p-2"
+                disabled={working || !canAuthorize}
+              >
+                {!domain && <option value="">Seleccioná un dominio del alcance</option>}
+                {(status?.scoped_domains ?? []).map((host) => (
+                  <option key={host} value={host}>
+                    {host}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="pilot-approval-ticket" className="space-y-1 text-sm">
+              <span>Ticket o referencia de autorización</span>
+              <Input
+                id="pilot-approval-ticket"
+                value={ticket}
+                onChange={(e) => setTicket(e.target.value)}
+                placeholder="Ej. CHG-2026-00123"
+                disabled={working || !canAuthorize}
+              />
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Vencimiento</span>
+              <select
+                value={expiryHours}
+                onChange={(e) => setExpiryHours(e.target.value)}
+                className="w-full rounded-md border bg-background p-2"
+                disabled={working || !canAuthorize}
+              >
+                <option value="24">24 horas</option>
+                <option value="72">3 días</option>
+                <option value="168">7 días</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm">
+              <span>Intervalo entre verificaciones</span>
+              <select
+                value={interval}
+                onChange={(e) => setInterval(e.target.value)}
+                className="w-full rounded-md border bg-background p-2"
+                disabled={working || !canAuthorize}
+              >
+                <option value="60">Cada hora</option>
+                <option value="360">Cada 6 horas</option>
+                <option value="720">Cada 12 horas</option>
+                <option value="1440">Cada 24 horas</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => void authorize()}
+              disabled={working || !canAuthorize || !domain || ticket.trim().length < 8}
+            >
+              <ShieldCheckIcon className="mr-2 h-4 w-4" />
+              {approved ? "Renovar autorización" : "Activar piloto automático"}
+            </Button>
+            <Button variant="outline" disabled={working || !approved} onClick={() => void runCheck()}>
+              Verificar ahora
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={working || !status?.approval?.enabled}
+              onClick={() => void revoke()}
+            >
+              Detener piloto
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Las comprobaciones comienzan automáticamente según la frecuencia y disponibilidad del servicio. El estado
+            muestra la próxima ejecución y el vencimiento de la autorización.
+          </p>
+          <p className="flex items-start gap-2 text-xs text-muted-foreground">
+            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            Lograr acceso solo puede acreditarse mediante una prueba específica con cuentas de ensayo y autorización
+            expresa. No se prueba ni se declara automáticamente en este piloto.
+          </p>
+        </CardContent>
+      </Card>
       <Card>
         <CardContent className="space-y-2 pt-5 text-sm">
           <p>
@@ -152,7 +275,7 @@ export function PilotTab({ taskId }: { taskId: string }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <ShieldCheckIcon className="h-5 w-5" /> Piloto de auditoría continua
+                <ShieldCheckIcon className="h-5 w-5" /> Estado del piloto automático
               </CardTitle>
               <p className="mt-2 text-sm text-muted-foreground">
                 Auditoría pasiva periódica, con autorización administrativa por objetivo y vencimiento. No ejecuta
@@ -175,9 +298,9 @@ export function PilotTab({ taskId }: { taskId: string }) {
               }
             >
               {approved ? <CheckCircle2Icon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
-              {approved ? "Verificación pasiva autorizada" : "Desactivado: sin aprobación vigente"}
+              {approved ? "Piloto automático activo" : "Piloto sin ejecución automática habilitada"}
             </span>
-            <span className="text-muted-foreground">Modo: HTTPS HEAD, máximo una vez cada 60 minutos</span>
+            <span className="text-muted-foreground">Controles pasivos de DNS, TLS, cabeceras y cookies</span>
           </div>
           {status?.scope_error ? (
             <p role="alert" className="text-sm text-destructive">
@@ -298,93 +421,6 @@ export function PilotTab({ taskId }: { taskId: string }) {
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Autorización del administrador</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Para habilitar el piloto, registrá primero una regla <code>allow</code> de tipo
-            <code> exact_domain</code> en la pestaña de intercepción. La autorización debe corresponder al alcance de
-            esta tarea y a un ticket documentado.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span>Dominio exacto aprobado</span>
-              <select
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                className="w-full rounded-md border bg-background p-2"
-                disabled={working}
-              >
-                {(status?.scoped_domains ?? []).map((host) => (
-                  <option key={host} value={host}>
-                    {host}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label htmlFor="pilot-approval-ticket" className="space-y-1 text-sm">
-              <span>Ticket o referencia de autorización</span>
-              <Input
-                id="pilot-approval-ticket"
-                value={ticket}
-                onChange={(e) => setTicket(e.target.value)}
-                placeholder="Ej. CHG-2026-00123"
-                disabled={working}
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span>Vencimiento</span>
-              <select
-                value={expiryHours}
-                onChange={(e) => setExpiryHours(e.target.value)}
-                className="w-full rounded-md border bg-background p-2"
-                disabled={working}
-              >
-                <option value="24">24 horas</option>
-                <option value="72">3 días</option>
-                <option value="168">7 días</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span>Intervalo entre verificaciones</span>
-              <select
-                value={interval}
-                onChange={(e) => setInterval(e.target.value)}
-                className="w-full rounded-md border bg-background p-2"
-                disabled={working}
-              >
-                <option value="60">Cada hora</option>
-                <option value="360">Cada 6 horas</option>
-                <option value="720">Cada 12 horas</option>
-                <option value="1440">Cada 24 horas</option>
-              </select>
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void authorize()} disabled={working || !domain || ticket.trim().length < 8}>
-              <ShieldCheckIcon className="mr-2 h-4 w-4" /> Autorizar comprobaciones pasivas
-            </Button>
-            <Button variant="outline" disabled={working || !approved} onClick={() => void runCheck()}>
-              Verificar ahora
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={working || !status?.approval?.enabled}
-              onClick={() => void revoke()}
-            >
-              Revocar autorización
-            </Button>
-          </div>
-          <p className="flex items-start gap-2 text-xs text-muted-foreground">
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            Lograr acceso solo puede acreditarse mediante una prueba específica con cuentas de ensayo y autorización
-            expresa. No se prueba ni se declara automáticamente en este piloto.
-          </p>
         </CardContent>
       </Card>
     </div>
