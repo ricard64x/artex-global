@@ -65,3 +65,6 @@ Cada comprobación de código tiene un límite de 600 segundos con terminación 
 
 ## Indicadores y preflight verificables
 La verificación del modelo privado puede ejecutarse dentro de la red Docker mediante `python3 scripts/nandutest_model_preflight.py`. Para obtener KPIs reales: `python3 scripts/nandutest_metrics.py --reports data/pilot-reports --output data/pilot-reports/pilot-dashboard.json`. La precisión necesita un CSV revisado por analista con columnas `run_id,finding_id,verdict` y valores `confirmed` o `false_positive`. No confundir alertas con vulnerabilidades confirmadas. La validación CI no descarga LLM ni realiza pruebas de penetración.
+
+## Chequeo real del modelo dentro de la red privada
+Después de construir Artex, ejecutar: `docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec -T artex python3 /app/scripts/nandutest_model_preflight.py`. La comprobación usa el nombre DNS interno `ollama` y no publica ningún puerto. La descarga y la inferencia real siguen pendientes de ejecución hasta disponer de infraestructura privada adecuada.
