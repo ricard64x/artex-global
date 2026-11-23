@@ -50,3 +50,11 @@ No ampliar la VM Ñandutest de 1 GiB para instalar Qwen. Si hay colas/OOM, aumen
 Revisar HTTP 401 sin sesión para GET /api/runtime/getangiru, POST /api/runtime/getangiru/search, POST /api/runtime/getangiru/feedback y POST /api/runtime/shared-model/test. Sin secretos, el panel debe mostrar desconectado. Con infraestructura, probar memoria sintética, rechazo de espacio ajeno, feedback y generación real. El acceso delegado continúa bloqueado por defecto.
 
 Revertir con GETANGIRU_READ_ENABLED=0 y retirando la configuración del modelo. No borrar datos ni memorias. El puente no escribe en Getangiru.
+
+
+## 23/11/2026 — conexión 6PN confirmada
+
+- Getangiru y Tenonderã tienen los servicios `fly6pn` y `fly6pn-dns` activos y DNS privado resolviendo desde la máquina Ñandutest.
+- Getangiru: `GET /v1/memories/search` mediante `sprite-getangiru._peer.internal:18080` respondió HTTP 200 con `space=nandutest`, token de lectura y `items=[]` en la prueba sintética.
+- Qwen: la ruta privada `sprite-tenondera-integrado._peer.internal:8080/v1/models` respondió 401 sin credencial, validando protección y conectividad. Prueba autenticada pendiente de incorporación de secretos nuevos a release.
+- No activar por afirmación de despliegue; confirmar secret `NANDUTEST_SHARED_LLM_API_KEY` dentro de instancia, inferencia real desde Fly y controles RBAC. Se mantiene fallback y rollback.
