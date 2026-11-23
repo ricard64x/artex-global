@@ -8,7 +8,7 @@ func TestPilotCompactionWindowMatchesRealModelLimits(t *testing.T) {
 		k     int
 		want  int
 	}{
-		{"qwen25-1.5b-local", 4, 4000},
+		{"qwen25-1.5b-local", 4, 32000},
 		{"gpt-4o-mini", 0, 96000},
 		{"gpt-4o-mini", 64, 64000},
 		{"other", 0, 200000},
