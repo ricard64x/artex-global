@@ -66,7 +66,7 @@ export default function SecurityInventoryPage() {
           <CardTitle>Herramientas disponibles</CardTitle>
           <CardDescription>
             {inventory
-              ? String(inventory.installed_count) + " instaladas de " + String(inventory.total_tools) + " verificadas. Las no encontradas no están disponibles para ejecución."
+              ? `${inventory.installed_count} instaladas de ${inventory.total_tools} verificadas.`
               : "Consultando los binarios del servidor..."}
           </CardDescription>
           <div className="flex flex-wrap items-center gap-2">
@@ -79,7 +79,11 @@ export default function SecurityInventoryPage() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <Button variant={installedOnly ? "default" : "outline"} size="sm" onClick={() => setInstalledOnly(!installedOnly)}>
+            <Button
+              variant={installedOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setInstalledOnly(!installedOnly)}
+            >
               {installedOnly ? "Mostrando instaladas" : "Mostrar solo instaladas"}
             </Button>
           </div>
@@ -115,15 +119,18 @@ export default function SecurityInventoryPage() {
         <CardHeader>
           <CardTitle>Administración y ampliación del catálogo</CardTitle>
           <CardDescription>
-            El inventario inspecciona el contenedor activo. Agregar software requiere una imagen validada y despliegue controlado.
+            El inventario inspecciona el contenedor activo. Agregar software requiere una imagen validada y despliegue
+            controlado.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            Los analizadores de código pesados (Semgrep y Trivy) deben mantenerse en ejecutores aislados y de uso temporal para no sobrecargar Fly.io.
+            Los analizadores de código pesados (Semgrep y Trivy) deben mantenerse en ejecutores aislados y de uso
+            temporal para no sobrecargar Fly.io.
           </p>
           <p>
-            Herramienta instalada no significa conectada a un agente. Toda prueba activa requiere alcance autorizado y controles de ejecución.
+            Herramienta instalada no significa conectada a un agente. Toda prueba activa requiere alcance autorizado y
+            controles de ejecución.
           </p>
           <Link href="/system/tools" className="text-primary underline underline-offset-4">
             Gestionar herramientas y permisos de agentes

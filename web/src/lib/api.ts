@@ -4,9 +4,9 @@
 // are passed through and formatted at the call site.
 
 import type { ChatMention } from "@/lib/chat-mentions";
-import type { RuntimeInventory } from "@/lib/runtime-inventory";
 import { MOCK } from "@/lib/mock/enabled";
 import { mockHandle } from "@/lib/mock/handler";
+import type { RuntimeInventory } from "@/lib/runtime-inventory";
 import type {
   ActiveFindingRetest,
   Activity,

@@ -75,16 +75,27 @@ export function RuntimeLLMStatus() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{!llm?.configured ? "Sin LLM configurado" : isLocal ? "Perfil local" : "Perfil externo"}</Badge>
+          <Badge variant="outline">
+            {!llm?.configured ? "Sin LLM configurado" : isLocal ? "Perfil local" : "Perfil externo"}
+          </Badge>
           <Badge variant={ready ? "default" : "secondary"}>
             {ready ? "Motor y modelo disponibles" : llm?.configured ? "Inferencia sin verificar" : "Inactivo"}
           </Badge>
           {result?.ok && <Badge className="bg-emerald-700">Inferencia real verificada</Badge>}
         </div>
         <div className="grid gap-1 text-muted-foreground">
-          <span>Modelo: <strong className="text-foreground">{llm?.model || "Sin configurar"}</strong></span>
+          <span>
+            Modelo: <strong className="text-foreground">{llm?.model || "Sin configurar"}</strong>
+          </span>
           <span>Perfil: {llm?.profile_name || "Predeterminado"}</span>
-          <span>Origen: {llm?.origin === "local" ? "Servicio local / Ollama" : llm?.origin === "remoto" ? "Proveedor externo" : "No configurado"}</span>
+          <span>
+            Origen:{" "}
+            {llm?.origin === "local"
+              ? "Servicio local / Ollama"
+              : llm?.origin === "remoto"
+                ? "Proveedor externo"
+                : "No configurado"}
+          </span>
           <span>{llm?.diagnostic || "Consultando configuración..."}</span>
         </div>
         {result?.ok ? (
@@ -93,7 +104,8 @@ export function RuntimeLLMStatus() {
           </p>
         ) : result ? (
           <p className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="size-4" /> Prueba fallida: {result.error || "El modelo no devolvió una respuesta válida"}.
+            <AlertCircle className="size-4" /> Prueba fallida:{" "}
+            {result.error || "El modelo no devolvió una respuesta válida"}.
           </p>
         ) : (
           <p className="text-muted-foreground text-xs">
@@ -101,7 +113,12 @@ export function RuntimeLLMStatus() {
           </p>
         )}
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" size="sm" onClick={() => void testInference()} disabled={!isLocal || !llm?.configured || testing}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void testInference()}
+            disabled={!isLocal || !llm?.configured || testing}
+          >
             {testing ? "Probando inferencia..." : "Probar inferencia local"}
           </Button>
           <Link href="/system/runtime-security" className="text-primary text-xs underline underline-offset-4">
