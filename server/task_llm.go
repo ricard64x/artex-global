@@ -135,7 +135,9 @@ func (r *taskLLMRuntime) current() (taskLLMSelection, error) {
 		if !ok {
 			return sel, fmt.Errorf("LLM profile #%d is missing or invalid", sel.profileID)
 		}
-		sel.provider, sel.retry = prov, cfg.Retry
+		// Explicit task-chain profiles use the configured global fallback
+		// only when both failover switches are enabled.
+		sel.provider, sel.retry = r.s.poolForBinding(sel.profileID, prov, cfg), cfg.Retry
 		return sel, nil
 	}
 	prov, cfg, ok := r.s.globalProvider()

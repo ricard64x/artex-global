@@ -215,10 +215,16 @@ export function GetangiruIntegration() {
                       : "Verificando el orden real de los modelos..."}
           </p>
           <p className="text-muted-foreground text-xs">
-            Las tareas con un modelo fijado explícitamente pueden conservar su selección. Qwen es un modelo pequeño y
-            limitado; si una tarea supera su capacidad, el failover permite mantener el servicio, con posible consumo de
-            la API de OpenAI.
+            Si el historial supera la capacidad de Qwen o el agente necesita herramientas incompatibles con el motor
+            local, Ñandutest utilizará OpenAI como respaldo únicamente si el failover está habilitado. Esta decisión
+            puede generar consumo de API.
           </p>
+          {memory?.enabled && !memory?.connected && (
+            <p role="alert" className="text-xs">
+              Getangiru no está verificado: la memoria puede estar temporalmente indisponible. Podés continuar con Qwen
+              y su respaldo OpenAI, pero OpenAI no reemplaza automáticamente las memorias de Getangiru.
+            </p>
+          )}
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 rounded-lg border p-3">

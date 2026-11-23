@@ -368,3 +368,44 @@ func TestExpiredWindowIsClosed(t *testing.T) {
 		t.Fatal("expired window should read as closed")
 	}
 }
+
+// TestPrivateQwenRequestSizeFallsBack verifies that the local private gateway's
+// documented 413 can use OpenAI, but a cloud-provider 413 cannot.
+func TestPrivateQwenRequestSizeFallsBack(t *testing.T) {
+	local := &fakeProv{name: "qwen", errs: []error{fmt.Errorf("openai: status 413: {\"error\":\"request_size\"}")}}
+	backup := okProv("openai", "respuesta")
+	p := New([]*Member{
+		{ID: 1, Name: "Qwen local", Model: "qwen25-1.5b-local", Rank: 10, WindowTokens: 4000, MaxRequestBytes: 8000, NoTools: true, Prov: local},
+		{ID: 2, Name: "OpenAI", Model: "gpt-4o-mini", Rank: 5, WindowTokens: 128000, Prov: backup},
+	}, NewRegistry(nil, nil))
+	got, err := drain(p.Stream(context.Background(), llm.CompletionRequest{}))
+	if err != nil || got != "respuesta" || local.calls != 1 || backup.calls != 1 {
+		t.Fatalf("fallback failed text=%q err=%v calls=%d/%d", got, err, local.calls, backup.calls)
+	}
+}
+func TestCloudRequestSizeDoesNotFailover(t *testing.T) {
+	cloud := &fakeProv{name: "cloud", errs: []error{fmt.Errorf("openai: status 413: {\"error\":\"request_size\"}")}}
+	backup := okProv("backup", "unexpected")
+	p := New([]*Member{member(1, "cloud", 10, cloud), member(2, "backup", 5, backup)}, NewRegistry(nil, nil))
+	_, err := drain(p.Stream(context.Background(), llm.CompletionRequest{}))
+	if err == nil || backup.calls != 0 {
+		t.Fatalf("cloud 413 must not retry: err=%v backup=%d", err, backup.calls)
+	}
+}
+func TestLargeOrToolUsingRequestsSkipLocalQwen(t *testing.T) {
+	for _, req := range []llm.CompletionRequest{
+		{System: []string{strings.Repeat("x", 10000)}},
+		{Tools: []llm.ToolSchema{{Name: "read_file", Description: "read_file"}}},
+	} {
+		local := okProv("local", "bad")
+		cloud := okProv("openai", "good")
+		p := New([]*Member{
+			{ID: 1, Name: "Qwen local", Model: "qwen25-1.5b-local", Rank: 10, WindowTokens: 4000, MaxRequestBytes: 8000, NoTools: true, Prov: local},
+			{ID: 2, Name: "OpenAI", Model: "gpt-4o-mini", Rank: 5, WindowTokens: 128000, Prov: cloud},
+		}, NewRegistry(nil, nil))
+		got, err := drain(p.Stream(context.Background(), req))
+		if err != nil || got != "good" || local.calls != 0 || cloud.calls != 1 {
+			t.Fatalf("local gateway should be skipped, got=%q err=%v calls=%d/%d", got, err, local.calls, cloud.calls)
+		}
+	}
+}

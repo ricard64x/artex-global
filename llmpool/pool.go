@@ -2,6 +2,7 @@ package llmpool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -31,8 +32,10 @@ type Member struct {
 	Rank int
 	// WindowTokens is the profile's context window in tokens. A member whose
 	// window can't hold the request is skipped rather than made to fail on it.
-	WindowTokens int
-	Prov         llm.Provider
+	WindowTokens    int
+	MaxRequestBytes int  // private gateway HTTP request cap (conservative)
+	NoTools         bool // private gateway does not support function calling
+	Prov            llm.Provider
 }
 
 // RankActive is the Rank the caller gives the chain head (the active profile, or
@@ -87,7 +90,7 @@ func (p *Pool) Stream(ctx context.Context, req llm.CompletionRequest) iter.Seq2[
 			emitted := false
 			var failed error
 			for ev, err := range m.Prov.Stream(ctx, req) {
-				if err != nil && !emitted && shouldFailover(ctx, err) {
+				if err != nil && !emitted && shouldFailoverMember(ctx, err, m) {
 					failed = err
 					break // safe window: nothing reached the caller yet
 				}
@@ -136,7 +139,7 @@ func (p *Pool) Complete(ctx context.Context, req llm.CompletionRequest) (llm.Mes
 			p.health.Pass(m.ID)
 			return msg, sr, usage, nil
 		}
-		if !shouldFailover(ctx, err) {
+		if !shouldFailoverMember(ctx, err, m) {
 			// Non-failover error (e.g. ctx cancel, deterministic 4xx): surface as-is
 			// without tripping health, matching Stream's non-failover path.
 			p.health.Pass(m.ID)
@@ -167,13 +170,23 @@ func (p *Pool) Complete(ctx context.Context, req llm.CompletionRequest) (llm.Mes
 // anyway, since stalling the engine is worse than one more failed request.
 func (p *Pool) order(req llm.CompletionRequest) []*Member {
 	est := estimateTokens(req)
+	payload, _ := json.Marshal(req)
+	size := len(payload)
 	var open []*Member
 	for _, m := range p.members {
 		if p.health.IsOpen(m.ID) {
 			continue
 		}
 		if m.WindowTokens > 0 && est > m.WindowTokens {
-			continue // would 400 on length — not a useful failover target
+			continue
+		}
+		if m.MaxRequestBytes > 0 && size > m.MaxRequestBytes {
+			log.Printf("[llmpool] local gateway request too large (%d bytes); skip %s and try configured backup", size, m.Name)
+			continue
+		}
+		if m.NoTools && len(req.Tools) > 0 {
+			log.Printf("[llmpool] local gateway has no tool calling; skip %s and try configured backup", m.Name)
+			continue
 		}
 		open = append(open, m)
 	}
@@ -246,6 +259,17 @@ func shouldFailover(ctx context.Context, err error) bool {
 		return true
 	}
 	return false
+}
+
+// A local gateway HTTP 413 request_size is eligible for one safe fallback.
+// A 413 returned by a cloud provider is not retryable.
+func shouldFailoverMember(ctx context.Context, err error, m *Member) bool {
+	if m != nil && m.MaxRequestBytes > 0 && err != nil &&
+		statusOf(err) == 413 && strings.Contains(strings.ToLower(err.Error()), "request_size") &&
+		ctx.Err() == nil {
+		return true
+	}
+	return shouldFailover(ctx, err)
 }
 
 // isHardFailure reports whether the failure is deterministic (the profile will

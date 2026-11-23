@@ -16,6 +16,15 @@ import (
 //   - 链序 = 激活配置 → 其余按 priority DESC,排除 pool_exclude 的;
 //   - 熔断状态进程级共享(s.llmHealth),重建 pool 不清空。
 
+// The private Qwen gateway rejects HTTP bodies over 12288 bytes.
+// Leave headroom for norma provider serialization differences.
+func localGatewaySafeBytes(cfg agent.Config) int {
+	if cfg.Model == "qwen25-1.5b-local" {
+		return 8000
+	}
+	return 0
+}
+
 // newLLMHealthRegistry builds the process-wide circuit-breaker registry, mirroring
 // state into PG so a cooling-off window survives a restart. Writes are async and
 // best-effort — the in-memory copy is authoritative.
@@ -66,6 +75,7 @@ func (s *Server) poolMember(p *db.LLMProfile, rank int) *llmpool.Member {
 		ID: p.ID, Name: p.Name, Model: p.Model, Format: p.Format,
 		Priority: p.Priority, Active: p.IsDefault, Rank: rank,
 		WindowTokens: cfg.CompactionWindow(), Prov: prov,
+		MaxRequestBytes: localGatewaySafeBytes(cfg), NoTools: localGatewaySafeBytes(cfg) > 0,
 	}
 }
 
@@ -104,6 +114,7 @@ func (s *Server) poolChain(headID int64, headProv llm.Provider, headCfg agent.Co
 		ID: head.ID, Name: head.Name, Model: head.Model, Format: head.Format,
 		Priority: head.Priority, Active: head.IsDefault, Rank: llmpool.RankActive,
 		WindowTokens: headCfg.CompactionWindow(), Prov: headProv,
+		MaxRequestBytes: localGatewaySafeBytes(headCfg), NoTools: localGatewaySafeBytes(headCfg) > 0,
 	}}
 	for _, p := range profs {
 		if p.ID == headID {

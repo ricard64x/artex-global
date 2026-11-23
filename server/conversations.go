@@ -904,3 +904,19 @@ func firstLine(s string, max int) string {
 	}
 	return s
 }
+
+// localizedMainAgentError distinguishes the OpenAI-compatible wire protocol
+// from the provider that actually handled the request.
+func (s *Server) localizedMainAgentError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if s.outputLanguage() != "es" {
+		return transcriptErrorSummary("메인 에이전트", err.Error())
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "status 413") || strings.Contains(msg, "request_size") || strings.Contains(msg, "prompt_too_long") {
+		return "(Error del agente principal: el contexto supera el límite del motor de IA. Para solicitudes demasiado extensas, usá OpenAI como respaldo de Qwen. El historial no fue borrado.)"
+	}
+	return "(Error del agente principal: " + firstLine(err.Error(), 180) + ")"
+}

@@ -47,6 +47,9 @@ var reasonHint = map[harness.TerminalReason]string{
 // terminalText renders a terminal event with no final text into a compact summary
 // and a Markdown detail block.
 func terminalText(ctx context.Context, term *harness.Terminal, tr *runTrace) (string, string) {
+	if resolveOutputLang() == "es" {
+		return terminalTextSpanish(ctx, term, tr)
+	}
 	reason := term.Reason
 	aborted := reason == harness.ReasonAbortedStreaming || reason == harness.ReasonAbortedTools
 	// Prompt may return ctx.Err directly without a terminal event. Preserve the
@@ -158,4 +161,60 @@ func roundDur(d time.Duration) string {
 	default:
 		return d.Round(time.Minute).String()
 	}
+}
+
+// terminalTextSpanish only localizes user-visible summaries. It preserves the
+// transcript, evidence, model selection and task lifecycle.
+func terminalTextSpanish(ctx context.Context, term *harness.Terminal, tr *runTrace) (string, string) {
+	label := string(term.Reason)
+	if label == "" {
+		label = "context_canceled"
+	}
+	hint := "La ejecución terminó sin un resumen."
+	switch term.Reason {
+	case harness.ReasonPromptTooLong:
+		hint = "El contexto supera la capacidad del modelo y se agotaron los intentos de compresión."
+	case harness.ReasonBlockingLimit:
+		hint = "El contexto es demasiado largo para el modelo seleccionado."
+	case harness.ReasonModelError:
+		hint = "El proveedor de IA no pudo completar la solicitud."
+	case harness.ReasonMaxTurns:
+		hint = "Se alcanzó el límite de rondas de la ejecución."
+	case harness.ReasonTimeout:
+		hint = "Se agotó el tiempo asignado."
+	case harness.ReasonCompleted:
+		hint = "La ronda terminó sin resumen textual."
+	case harness.ReasonAbortedStreaming, harness.ReasonAbortedTools:
+		hint = "La ejecución fue interrumpida."
+	}
+	summary := "(Sin resumen: " + hint + ")"
+	var details strings.Builder
+	details.WriteString(summary + "\n\n")
+	fmt.Fprintf(&details, "- **Estado final:** %s — %s\n", label, hint)
+	if term.Err != nil {
+		reason := term.Err.Error()
+		if strings.Contains(reason, "status 413") || strings.Contains(reason, "request_size") {
+			details.WriteString("- **Error técnico:** HTTP 413 (request_size). La solicitud supera el tamaño admitido.\n")
+			details.WriteString("- **Acción:** utilizar Qwen primario con OpenAI de respaldo para solicitudes que no caben en el motor local.\n")
+		} else {
+			fmt.Fprintf(&details, "- **Error técnico:** %s\n", firstLine(reason, 180))
+		}
+	}
+	if term.Turns > 0 {
+		fmt.Fprintf(&details, "- **Rondas ejecutadas:** %d\n", term.Turns)
+	}
+	if !tr.startedAt.IsZero() {
+		fmt.Fprintf(&details, "- **Duración:** %s\n", roundDur(time.Since(tr.startedAt)))
+	}
+	if tr.name == "" {
+		details.WriteString("- **Herramientas utilizadas:** ninguna en esta ronda.\n")
+	} else if tr.pending {
+		fmt.Fprintf(&details, "- **Herramienta pendiente:** %s (sin respuesta confirmada).\n", tr.name)
+	} else {
+		fmt.Fprintf(&details, "- **Última herramienta completada:** %s.\n", tr.name)
+	}
+	if (term.Reason == harness.ReasonAbortedStreaming || term.Reason == harness.ReasonAbortedTools) && strings.TrimSpace(term.Text) != "" {
+		details.WriteString("- **Salida parcial:**\n\n" + term.Text + "\n")
+	}
+	return summary, details.String()
 }

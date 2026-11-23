@@ -768,12 +768,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/auth/init", s.authInit)
 	mux.HandleFunc("POST /api/auth/login", s.authLogin)
 	mux.HandleFunc("POST /api/auth/change-password", s.authChangePassword)
- mux.HandleFunc("GET /api/auth/me", s.authMe)
- mux.HandleFunc("GET /api/users", s.manageUsers)
- mux.HandleFunc("POST /api/users", s.manageUsers)
- mux.HandleFunc("PATCH /api/users/{id}", s.manageUser)
- mux.HandleFunc("DELETE /api/users/{id}", s.manageUser)
- mux.HandleFunc("POST /api/users/{id}/password", s.resetUserPassword)
+	mux.HandleFunc("GET /api/auth/me", s.authMe)
+	mux.HandleFunc("GET /api/users", s.manageUsers)
+	mux.HandleFunc("POST /api/users", s.manageUsers)
+	mux.HandleFunc("PATCH /api/users/{id}", s.manageUser)
+	mux.HandleFunc("DELETE /api/users/{id}", s.manageUser)
+	mux.HandleFunc("POST /api/users/{id}/password", s.resetUserPassword)
 
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/runtime/inventory", s.runtimeInventory)
@@ -3897,7 +3897,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 			_, err := ma.Chat(ctx, maTaskID, mainSeg, s.m.Assets(), t.Store, t.Goal, agentMsg, emit, t.Notify, resume, t.NotifyGoal, t.NotifyHint)
 			s.engine.EndLLMCall(t.ID)
 			if err != nil && ctx.Err() == nil {
-				s.engine.emitActivity(t, db.Activity{Worker: "mainagent", Kind: "text", IsError: true, Summary: transcriptErrorSummary("메인 에이전트", err.Error()), MainSeg: segPtr})
+				s.engine.emitActivity(t, db.Activity{Worker: "mainagent", Kind: "text", IsError: true, Summary: s.localizedMainAgentError(err), MainSeg: segPtr})
 			}
 		}()
 		writeJSON(w, 202, map[string]any{"status": "accepted", "mode": "llm"})
