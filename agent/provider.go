@@ -112,6 +112,14 @@ const (
 // thresholds, resolved from the user-configured size (ContextWindowK). 0/unset →
 // a 200K default; otherwise clamped to [32K, 1M] so compaction stays effective.
 func (c Config) CompactionWindow() int {
+	// The private Qwen request-size limit is enforced before sending via
+	// llmpool. SDK compaction reserves 8K summary + 13K safety buffer,
+	// therefore it cannot safely operate with a synthetic 4K window.
+	// This model has a 128K context, whereas our default 200K assumed
+	// Claude. Reserve headroom for tools, JSON encoding and summary turns.
+	if c.Model == "gpt-4o-mini" && c.ContextWindowK <= 0 {
+		return 96000
+	}
 	k := c.ContextWindowK
 	if k <= 0 {
 		k = defaultWindowK
