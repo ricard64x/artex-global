@@ -19,6 +19,8 @@ export function GetangiruIntegration() {
   const [loading, setLoading] = React.useState(false);
   const [searching, setSearching] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
+  const [memoryTesting, setMemoryTesting] = React.useState(false);
+  const [memoryTestResult, setMemoryTestResult] = React.useState<string | null>(null);
   const [reviewing, setReviewing] = React.useState("");
   const [modelResult, setModelResult] = React.useState<string | null>(null);
 
@@ -70,13 +72,32 @@ export function GetangiruIntegration() {
     }
   }
 
+  async function testMemory() {
+    if (memoryTesting) return;
+    setMemoryTesting(true);
+    setMemoryTestResult(null);
+    try {
+      const result = await api.getangiruConnectivityTest();
+      setMemoryTestResult(
+        "Conexión de memoria verificada. " +
+        String(result.latency_ms ?? 0) +
+        " ms; " + result.items.length + " coincidencias en consulta sintética."
+      );
+      await refresh();
+    } catch (error) {
+      setMemoryTestResult("No se pudo verificar Getangiru: " + String(error));
+    } finally {
+      setMemoryTesting(false);
+    }
+  }
+
   async function testSharedModel() {
     if (testing) return;
     setTesting(true);
     setModelResult(null);
     try {
       const result = await api.getangiruSharedModelTest();
-      setModelResult("Inferencia de prueba correcta: " + String(result.latency_ms) + " ms.");
+      setModelResult("Inferencia Qwen verificada desde Ñandutest: " + String(result.latency_ms) + " ms.");
       await refresh();
     } catch (error) {
       setModelResult("No se verificó la inferencia: " + String(error));
@@ -123,6 +144,13 @@ export function GetangiruIntegration() {
               Consultas: {memory?.metrics.requests ?? 0} · Caché: {memory?.metrics.cache_hits ?? 0} · Latencia p95:{" "}
               {memory?.metrics.p95_ms ?? 0} ms
             </p>
+            <div className="space-y-1">
+              <Button size="sm" variant="outline" onClick={() => void testMemory()} disabled={!memory?.enabled || memoryTesting}>
+                <ShieldCheck className="size-4" />
+                {memoryTesting ? "Verificando memoria (máx. 8 s)..." : "Probar conexión de memoria"}
+              </Button>
+              {memoryTestResult && <p role="status" aria-live="polite" className="text-muted-foreground text-xs">{memoryTestResult}</p>}
+            </div>
             <p className="text-muted-foreground text-xs">
               Revisadas: {memory?.reviewed_sources.confirmado ?? 0} confirmadas ·
               {memory?.reviewed_sources.descartado ?? 0} descartadas · {memory?.reviewed_sources.desactualizado ?? 0}{" "}
@@ -149,9 +177,9 @@ export function GetangiruIntegration() {
               disabled={!model?.configured || testing}
             >
               <ShieldCheck className="size-4" />
-              {testing ? "Probando modelo..." : "Probar inferencia compartida"}
+              {testing ? "Probando Qwen (máx. 30 s)..." : "Probar inferencia compartida"}
             </Button>
-            {modelResult && <p className="text-muted-foreground text-xs">{modelResult}</p>}
+            {modelResult && <p role="status" aria-live="polite" className="text-muted-foreground text-xs">{modelResult}</p>}
           </div>
         </div>
 
