@@ -4,6 +4,7 @@
 // are passed through and formatted at the call site.
 
 import type { ChatMention } from "@/lib/chat-mentions";
+import type { GetangiruRuntimeStatus, GetangiruSearchResult, GetangiruVerdict } from "@/lib/getangiru";
 import { MOCK } from "@/lib/mock/enabled";
 import { mockHandle } from "@/lib/mock/handler";
 import type { RuntimeInventory } from "@/lib/runtime-inventory";
@@ -249,6 +250,12 @@ export const api = {
   // 后端应用版本号（release 时由 ldflags 注入，默认 "dev"）。
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
   runtimeInventory: () => get<RuntimeInventory>("/runtime/inventory"),
+  getangiruStatus: () => get<GetangiruRuntimeStatus>("/runtime/getangiru"),
+  getangiruSearch: (query: string) => post<GetangiruSearchResult>("/runtime/getangiru/search", { query }),
+  getangiruFeedback: (source_id: string, verdict: GetangiruVerdict) =>
+    post<{ ok: boolean }>("/runtime/getangiru/feedback", { source_id, verdict }),
+  getangiruSharedModelTest: () =>
+    post<{ ok: boolean; model: string; latency_ms: number }>("/runtime/shared-model/test", {}),
 
   // ---- auth ----
   authStatus: () => get<{ initialized: boolean; setup_token_required?: boolean }>("/auth/status"),

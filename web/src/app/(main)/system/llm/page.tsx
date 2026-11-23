@@ -16,6 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { GetangiruIntegration } from "@/components/ndt/getangiru-integration";
 import { RuntimeLLMStatus } from "@/components/ndt/runtime-llm-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -846,6 +847,8 @@ export default function LLMPage() {
       </div>
 
       <RuntimeLLMStatus />
+
+      <GetangiruIntegration />
 
       <Tabs defaultValue="profiles" className="flex-1">
         <TabsList>
