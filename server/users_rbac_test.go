@@ -31,3 +31,10 @@ func TestDelegatedEndpointDenyByDefault(t *testing.T){
  for _,p:=range allowed{if !delegatedReadAllowed(p){t.Errorf("blocked safe path: %s",p)}}
  for _,p:=range denied{if delegatedReadAllowed(p){t.Errorf("exposed restricted path: %s",p)}}
 }
+
+func TestDelegatedProductionDisabledByDefault(t *testing.T) {
+ t.Setenv("NANDUTEST_DELEGATED_ENABLED","")
+ if delegatedPilotEnabled() { t.Fatal("delegated access accidentally enabled") }
+ t.Setenv("NANDUTEST_DELEGATED_ENABLED","true")
+ if delegatedPilotEnabled() { t.Fatal("only explicit 1 enables delegated pilot") }
+}

@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -tags embedui -trimpath \
 
 FROM debian:bookworm-slim
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates tzdata curl python3 \
+  && apt-get install -y --no-install-recommends ca-certificates tzdata curl python3 gosu \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --home /app --shell /usr/sbin/nologin artex
 WORKDIR /app
@@ -31,8 +31,9 @@ COPY --chown=10001:10001 scripts/nandutest_metrics.py /app/scripts/nandutest_met
 RUN chmod +x /app/start.sh /app/artex \
   && mkdir -p /app/data \
   && chown -R 10001:10001 /app
-USER 10001:10001
+COPY scripts/nandutest-entrypoint.sh /app/nandutest-entrypoint.sh
+RUN chmod +x /app/nandutest-entrypoint.sh
 ENV ARTEX_LANG=es
 EXPOSE 8787
-ENTRYPOINT ["/app/start.sh"]
+ENTRYPOINT ["/app/nandutest-entrypoint.sh"]
 CMD ["-addr",":8787","-proxy","127.0.0.1:8788"]

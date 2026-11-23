@@ -68,3 +68,8 @@ La verificación del modelo privado puede ejecutarse dentro de la red Docker med
 
 ## Chequeo real del modelo dentro de la red privada
 Después de construir Artex, ejecutar: `docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec -T artex python3 /app/scripts/nandutest_model_preflight.py`. La comprobación usa el nombre DNS interno `ollama` y no publica ningún puerto. La descarga y la inferencia real siguen pendientes de ejecución hasta disponer de infraestructura privada adecuada.
+
+## Producción: rollout seguro por fases
+- En el despliegue sobre Fly.io se mantiene `NANDUTEST_DELEGATED_ENABLED` desactivado. La administración multiusuario funciona, pero las cuentas delegadas **no pueden iniciar sesión** hasta que se implemente autorización por empresa y proyecto. Evita lectura accidental de hallazgos y tareas entre empresas.
+- Reutilizar el volumen original requiere snapshot comprobado y permisos para UID 10001. El entrypoint de la imagen propia solo cambia propietario de `/app/data` y luego ejecuta el proceso como usuario sin privilegios.
+- Nunca ejecutar Ollama 4B en la máquina Fly actual (1 CPU compartida, 1 GB RAM). La integración LLM local está disponible exclusivamente en infraestructura separada y privada.

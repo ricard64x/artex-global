@@ -462,7 +462,7 @@ func (s *Server) requireAuth(h http.Handler) http.Handler {
   if extractToken(r)==""{writeErr(w,401,authErrUnauthorized);return}
   who,ok:=s.authPrincipal(extractToken(r))
   if !ok{writeErr(w,401,authErrTokenInvalid);return}
-  if who.Role!="superadmin" && !(r.Method==http.MethodGet && delegatedReadAllowed(p)){
+  if who.Role!="superadmin" && (!delegatedPilotEnabled() || !(r.Method==http.MethodGet && delegatedReadAllowed(p))){
    writeErr(w,403,"Acceso denegado: el perfil delegado solo puede consultar información autorizada");return
   }
   h.ServeHTTP(w,r)

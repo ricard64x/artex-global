@@ -30,6 +30,7 @@ func TestPrivilegedJWTRejectsDelegatedSubject(t *testing.T) {
 // Full handler path with PostgreSQL. The same RBAC policy protects both the UI
 // and direct API calls; changing a member role revokes its prior JWT immediately.
 func TestDelegatedRBACRevocationDB(t *testing.T) {
+	t.Setenv("NANDUTEST_DELEGATED_ENABLED","1")
 	rig := newAuthTestRig(t)
 	pg := rig.s.m.pg
 	password := "Correct-Horse-Password-123"

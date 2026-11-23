@@ -7,6 +7,7 @@ import (
  "crypto/subtle"
  "fmt"
  "net/http"
+ "os"
  "regexp"
  "strconv"
  "strings"
@@ -132,6 +133,7 @@ func memberPasswordOK(password string) bool {
 func managedRole(role string) bool {return role=="operator"||role=="auditor"}
 
 func (s *Server) memberLogin(w http.ResponseWriter,r *http.Request,username,password,key string) {
+ if !delegatedPilotEnabled() { writeErr(w,403,"Las cuentas delegadas se habilitarán después de validar el aislamiento por empresa");return }
  pg:=s.m.PG()
  var p memberIdentity
  var hashed string
@@ -283,3 +285,10 @@ func (s *Server) auditUserAction(action string,id int64,r *http.Request){
  if err!=nil{ /* do not leak customer data or credentials into logs */ }
 }
 
+
+// delegatedPilotEnabled is a temporary break-glass switch. In production it
+// MUST stay off until resources are filtered by company and project in the DB,
+// not only through the UI. Admin management remains available.
+func delegatedPilotEnabled() bool {
+ return os.Getenv("NANDUTEST_DELEGATED_ENABLED") == "1"
+}
