@@ -64,3 +64,21 @@ Ambos devolvieron vacío antes del alta 6PN (no afirmar conexión).
 La cuota de 10/min y concurrencia 1 del gateway son locales al consumidor; el scheduler central con prioridades P0/P1/P2 entre las tres plataformas aún no está construido. Los antiguos servicios `tenondera-memory-sync` y `getangiru-ingress` figuran fallidos y requieren migración posterior a la ruta 6PN. No usar el Quick Tunnel temporal.
 
 La operación es **parcialmente implementada** hasta verificar conexión real desde Fly.
+
+## Verificación adicional — 23/11/2026
+
+- Verificación directa desde ambos Sprites de `https://api.sprites.dev/v1/gateway/list`: HTTP 200; `connections=[]`, por lo que **no existe** Connector Custom API autorizado todavía.
+- En `getangiru`, `sprite org list` indica que no hay una sesión Fly CLI autenticada; tampoco se dispone de un token WireGuard dedicado mediante las herramientas conectadas.
+- No se creó ningún peer WireGuard, no se alteró el modo de autenticación de las URLs y **no se activó** la conexión Getangiru/Qwen desde Ñandutest.
+- La interfaz del panel Fly.io requiere una sesión de navegador autorizada que no está disponible por las herramientas de administración actuales. Completar esa autorización manualmente o mediante ChatGPT Work con navegador, sin trasladar secretos a mensajes ni repositorios.
+
+### Checklist de autorización mínimo
+
+1. Iniciar sesión en Fly.io, organización `ricardo-rodriguez-847`.
+2. Con un CLI Fly autenticado, emitir: `fly tokens create wireguard -x30m --org ricardo-rodriguez-847`.
+3. En **Sprites → Connectors → Add Connector → Custom API**, usar `https://api.fly.io` con el token temporal. Limitar el Connector a `getangiru` y `tenondera-integrado`; no autorizar todos los Sprites si la política permite selección más estrecha.
+4. Confirmar que ambos Sprites ven un Connector con `base_api_url=https://api.fly.io` sin imprimir ni registrar el token.
+5. Auditar o fijar versión del instalador Fly6PN y ejecutarlo en cada Sprite; comprobar el handshake y la resolución DNS desde `artex-global-py`.
+6. Validar peticiones autenticadas de extremo a extremo antes de activar `GETANGIRU_READ_ENABLED=1` o seleccionar Qwen como perfil principal.
+
+**Nota:** el sistema de GitHub Issues de `ricard64x/artex-global` está deshabilitado (HTTP 410), por lo que este runbook es el registro operativo de este bloqueo.
