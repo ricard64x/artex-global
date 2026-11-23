@@ -153,8 +153,21 @@ jobs:
             echo "::error::New Ñandutest binary did not respond with expected version"
             exit 1
           fi
-          status="$(curl -fsS --max-time 20 https://artex-global-py.fly.dev/api/auth/status)"
-          AUTH_STATUS="$status" python3 -c 'import json,os; d=json.loads(os.environ["AUTH_STATUS"]); assert d.get("initialized") is True'
+          auth_ready=0
+          # A healthy new process can precede public proxy propagation.
+          for i in $(seq 1 18); do
+            status="$(curl -fsS --connect-timeout 5 --max-time 12 https://artex-global-py.fly.dev/api/auth/status || true)"
+            if AUTH_STATUS="$status" python3 -c 'import json,os; d=json.loads(os.environ["AUTH_STATUS"]); assert d.get("initialized") is True' 2>/dev/null; then
+              auth_ready=1
+              break
+            fi
+            echo "Auth readiness pending (attempt $i)"
+            sleep 4
+          done
+          if [ "$auth_ready" -ne 1 ]; then
+            echo "::error::Auth service not initialized after bounded retries"
+            exit 1
+          fi
           root_ready=0
           # A replacement may be healthy before the public Fly proxy routes
           # every request to the updated instance.
