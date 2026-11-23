@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/artex/db"
 	"github.com/Autumn-27/norma/permission"
 	actool "github.com/Autumn-27/norma/tool"
@@ -349,6 +350,11 @@ func (s *Server) runCommandTool(ctx context.Context, execRaw json.RawMessage, pa
 		return actool.Errorf("command 为空"), nil
 	}
 	cmd := renderTemplate(spec.Command, params, shellQuote)
+	adapted, note, blocked := agent.AdaptCommandForRuntime(cmd)
+	if blocked != "" {
+		return actool.Errorf(blocked), nil
+	}
+	cmd = adapted
 	// 复用 Bash 也在用的底层 run(经 Bash CoreTool.Call):自动继承安全 floor/超时/
 	// 代理 env/输出溢出。工具与 Bash 平级、共用底层,不经过 Bash 这个工具让模型调。
 	bashIn, _ := json.Marshal(map[string]any{"command": cmd})
@@ -357,7 +363,11 @@ func (s *Server) runCommandTool(ctx context.Context, execRaw json.RawMessage, pa
 		ctx, cancel = context.WithTimeout(ctx, timeoutOr(spec.TimeoutMs, 120000))
 		defer cancel()
 	}
-	return actool.NewBash().Call(ctx, bashIn, tc)
+	result, err := actool.NewBash().Call(ctx, bashIn, tc)
+	if err != nil {
+		return result, err
+	}
+	return agent.ExplainToolRuntimeFailure(result, note), nil
 }
 
 // ---------- script(仅 Python):临时文件 + stdin JSON + env ----------

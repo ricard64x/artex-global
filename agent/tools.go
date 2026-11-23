@@ -1235,6 +1235,9 @@ func (t *ToolSet) addFinding() actool.CoreTool {
 		if err := json.Unmarshal(in, &a); err != nil {
 			return actool.Errorf(err.Error()), nil
 		}
+		if IsLocalToolPrivilegeError(a.Evidence) {
+			return actool.Errorf("La evidencia corresponde a un error de privilegios del ejecutor, no a una vulnerabilidad. Corregí la ejecución con una alternativa sin privilegios y obtené pruebas reales antes de reportar."), nil
+		}
 		if t.ts == nil {
 			return actool.Errorf("report_finding 需要任务上下文；平台对话请通过 add_task_hint 向对应任务交接漏洞，并在提示中携带已有的 traffic_refs，由任务 Agent 登记。已登记漏洞可用 bind_finding_traffic 补绑。"), nil
 		}
@@ -1317,6 +1320,9 @@ type factItem struct {
 func (t *ToolSet) recordOneFact(it factItem, defaultIntent int64) (int64, error) {
 	if strings.TrimSpace(it.Summary) == "" {
 		return 0, fmt.Errorf("summary 不能为空")
+	}
+	if IsLocalToolPrivilegeError(it.Evidence) {
+		return 0, fmt.Errorf("La evidencia es un error de permisos local: no se puede registrar como hecho del objetivo. Reintentá con herramienta compatible o dejá la prueba pendiente.")
 	}
 	payload := map[string]any{"summary": it.Summary}
 	if it.Detail != "" {

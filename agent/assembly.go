@@ -67,7 +67,9 @@ func AugmentTools(ctx context.Context, agentKey string, base []actool.CoreTool) 
 	// seeing only the official names. See issue #19.
 	out, def.Deferred = addToolAliases(out, def.Deferred)
 	for i, t := range out {
-		out[i] = guardPanic(t)
+		// Applies after DB overrides and aliases: every role and every shell alias
+		// shares privilege checks and permission-failure reporting.
+		out[i] = guardPanic(withRuntimeToolPreflight(t))
 	}
 	return out, def, cleanup
 }

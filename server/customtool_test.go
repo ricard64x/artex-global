@@ -3,10 +3,13 @@ package server
 import (
 	"context"
 	"encoding/json"
+	actool "github.com/Autumn-27/norma/tool"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -193,5 +196,26 @@ func TestHTTPToolTruncatesLargeBody(t *testing.T) {
 	out := res.Flatten()
 	if len(out) >= 40000 {
 		t.Fatalf("oversized http body was not truncated: len=%d", len(out))
+	}
+}
+
+func TestRunCommandToolAdaptsPrivilegedNmapSafely(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\nprintf 'MOCK_NMAP_ARGS:%s\\n' \"$*\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "nmap"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("NANDUTEST_ALLOW_RAW_SOCKET_SCANS", "0")
+	spec, _ := json.Marshal(commandExec{Command: "nmap -sS -sV -O -p 1 {target}", TimeoutMs: 5000})
+	tc := &actool.ToolContext{WorkingDir: dir, Env: []string{"PATH=" + dir + ":" + os.Getenv("PATH")}}
+	result, err := (&Server{}).runCommandTool(context.Background(), spec, map[string]any{"target": "127.0.0.1"}, tc)
+	if err != nil || result.IsError {
+		t.Fatalf("custom-tool run failed: %+v %v", result, err)
+	}
+	out := result.Flatten()
+	for _, want := range []string{"MOCK_NMAP_ARGS:-sT -sV -p 1 127.0.0.1", "Comando efectivo: nmap -sT -sV -p 1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q from result: %s", want, out)
+		}
 	}
 }
