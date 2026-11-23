@@ -87,6 +87,12 @@ export function GetangiruIntegration() {
 
   const memory = status?.memory;
   const model = status?.model;
+  let memoryLabel = "Desconectada";
+  if (memory?.connected) memoryLabel = "Conexión comprobada";
+  else if (memory?.enabled) memoryLabel = "Configurada · sin probar";
+  let modelLabel = "Sin inferencia verificada";
+  if (model?.verified) modelLabel = "Probado · no seleccionado";
+  if (model?.verified && model.active_for_nandutest) modelLabel = "Activo y probado";
 
   return (
     <Card>
@@ -110,19 +116,19 @@ export function GetangiruIntegration() {
               <Database className="size-4" />
               <span className="font-medium">Memoria Getangiru</span>
               <Badge variant={memory?.connected ? "default" : "outline"}>
-                {memory?.connected ? "Conexión comprobada" : memory?.enabled ? "Configurada · sin probar" : "Desconectada"}
+                {memoryLabel}
               </Badge>
             </div>
             <p className="text-muted-foreground">{memory?.reason || "Consultando configuración..."}</p>
             <p className="text-muted-foreground text-xs">{memory?.scope || "Ámbito todavía no configurado"}</p>
             <p className="text-muted-foreground text-xs">
-              Consultas: {memory?.metrics.requests ?? 0} · Caché: {memory?.metrics.cache_hits ?? 0} ·
-              Latencia p95: {memory?.metrics.p95_ms ?? 0} ms
+              Consultas: {memory?.metrics.requests ?? 0} · Caché: {memory?.metrics.cache_hits ?? 0} · Latencia p95:{" "}
+              {memory?.metrics.p95_ms ?? 0} ms
             </p>
             <p className="text-muted-foreground text-xs">
               Revisadas: {memory?.reviewed_sources.confirmado ?? 0} confirmadas ·
-              {memory?.reviewed_sources.descartado ?? 0} descartadas ·
-              {memory?.reviewed_sources.desactualizado ?? 0} desactualizadas
+              {memory?.reviewed_sources.descartado ?? 0} descartadas · {memory?.reviewed_sources.desactualizado ?? 0}{" "}
+              desactualizadas
             </p>
           </div>
           <div className="space-y-2 rounded-lg border p-3">
@@ -130,11 +136,7 @@ export function GetangiruIntegration() {
               <BrainCircuit className="size-4" />
               <span className="font-medium">Qwen autohospedado</span>
               <Badge variant={model?.verified && model.active_for_nandutest ? "default" : "outline"}>
-                {model?.verified && model.active_for_nandutest
-                  ? "Activo y probado"
-                  : model?.verified
-                    ? "Probado · no seleccionado"
-                    : "Sin inferencia verificada"}
+                {modelLabel}
               </Badge>
             </div>
             <p className="text-muted-foreground">{model?.reason || "Consultando configuración..."}</p>
@@ -170,17 +172,13 @@ export function GetangiruIntegration() {
                 }}
               />
             </div>
-            <Button
-              size="sm"
-              onClick={() => void search()}
-              disabled={!memory?.enabled || !query.trim() || searching}
-            >
+            <Button size="sm" onClick={() => void search()} disabled={!memory?.enabled || !query.trim() || searching}>
               <Search className="size-4" /> {searching ? "Buscando..." : "Consultar memoria"}
             </Button>
           </div>
           <p className="text-muted-foreground text-xs">
-            No ingresar contraseñas, datos personales ni documentos completos. El servidor aplica una cuota máxima
-            de 20 consultas/minuto, 200/día y dos solicitudes simultáneas; caché temporal de 60 segundos.
+            No ingresar contraseñas, datos personales ni documentos completos. El servidor aplica una cuota máxima de 20
+            consultas/minuto, 200/día y dos solicitudes simultáneas; caché temporal de 60 segundos.
           </p>
         </div>
 
