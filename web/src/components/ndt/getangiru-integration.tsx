@@ -133,6 +133,29 @@ export function GetangiruIntegration() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
+        <div className="rounded-lg border p-3" role="status" aria-live="polite">
+          <p className="font-semibold">
+            {memory?.connected && model?.verified
+              ? "Integración privada funcionando: Getangiru y Qwen conectados"
+              : memory?.connected
+                ? "Memoria Getangiru conectada y funcionando"
+                : "Verificación de la integración privada pendiente"}
+          </p>
+          <p className="mt-1 text-muted-foreground text-xs">
+            {memory?.connected && model?.verified
+              ? "Ñandutest recupera memoria autorizada desde Getangiru y puede ejecutar inferencias con Qwen local a través de Fly6PN."
+              : memory?.connected
+                ? "Ñandutest ya consulta Getangiru a través de Fly6PN. La inferencia de Qwen requiere una verificación independiente."
+                : "Configuración detectada. Ejecutá la prueba de conexión para comprobar el servicio desde Ñandutest."}
+          </p>
+          <p className="mt-1 text-xs">
+            {model?.verified && model.active_for_nandutest
+              ? "Motor de IA principal: Qwen local seleccionado y verificado."
+              : model?.verified
+                ? "Qwen local: disponible y probado. El motor principal sigue siendo el perfil externo; las tareas generales todavía no se procesan con Qwen."
+                : "No se ha confirmado que Qwen esté procesando las tareas generales de Ñandutest."}
+          </p>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2">
