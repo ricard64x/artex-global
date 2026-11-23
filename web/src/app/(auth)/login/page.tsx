@@ -19,6 +19,7 @@ export default function LoginPage() {
   const router = useRouter();
   const t = useTranslations("auth");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("ARTEX");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -70,7 +71,7 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const { token } = await api.login("ARTEX", password);
+      const { token } = await api.login(username.trim(), password);
       auth.setToken(token);
       window.location.replace("/function/tasks");
     } catch {
@@ -111,7 +112,13 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="username">{t("login.username")}</Label>
-              <Input id="username" value="ARTEX" readOnly className="bg-muted text-muted-foreground" />
+              <Input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">{t("login.password")}</Label>

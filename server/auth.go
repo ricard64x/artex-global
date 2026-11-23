@@ -125,15 +125,14 @@ func signJWT(key []byte) (string, error) {
 	}).SignedString(key)
 }
 
-// verifyJWT returns true when tokenStr is a valid, non-expired HS256 token.
+// verifyJWT accepts only privileged ARTEX tokens, never member tokens.
+// Checking a signature alone is insufficient when keys are reused or migrated.
 func verifyJWT(tokenStr string, key []byte) bool {
-	t, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
+	claims := &jwt.RegisteredClaims{}
+	t, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 		return key, nil
-	})
-	return err == nil && t.Valid
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
+	return err == nil && t.Valid && claims.Subject == "ARTEX"
 }
 
 // signingKey derives the HS256 key that signs and verifies tokens for the given
@@ -455,23 +454,23 @@ func extractToken(r *http.Request) string {
 // requireAuth wraps h with JWT validation.
 // /api/auth/* and /api/health are exempt.
 func (s *Server) requireAuth(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		if strings.HasPrefix(p, "/api/auth/") || p == "/api/health" {
-			h.ServeHTTP(w, r)
-			return
-		}
-		tok := extractToken(r)
-		if tok == "" {
-			writeErr(w, 401, authErrUnauthorized)
-			return
-		}
-		if !s.verifyToken(tok) {
-			writeErr(w, 401, authErrTokenInvalid)
-			return
-		}
-		h.ServeHTTP(w, r)
-	})
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  p:=r.URL.Path
+  if strings.HasPrefix(p,"/api/auth/") || p=="/api/health" {
+   h.ServeHTTP(w,r);return
+  }
+  if extractToken(r)==""{writeErr(w,401,authErrUnauthorized);return}
+  who,ok:=s.authPrincipal(extractToken(r))
+  if !ok{writeErr(w,401,authErrTokenInvalid);return}
+  if os.Getenv("NANDUTEST_DISABLE_SELFUPDATE")=="1" &&
+    (p=="/api/update/apply" || p=="/api/update/rollback"){
+    writeErr(w,403,"Las actualizaciones automáticas están deshabilitadas para esta versión");return
+  }
+  if who.Role!="superadmin" && (!delegatedPilotEnabled() || !(r.Method==http.MethodGet && delegatedReadAllowed(p))){
+   writeErr(w,403,"Acceso denegado: el perfil delegado solo puede consultar información autorizada");return
+  }
+  h.ServeHTTP(w,r)
+ })
 }
 
 // GET /api/auth/status — reports whether the admin password has been initialised.
@@ -586,6 +585,7 @@ func (s *Server) authInit(w http.ResponseWriter, r *http.Request) {
 // stops working (the signing key is bound to the hash); the response carries a
 // fresh token so the caller's own session continues.
 func (s *Server) authChangePassword(w http.ResponseWriter, r *http.Request) {
+	if _,ok:=s.memberFromToken(extractToken(r));ok {s.memberChangePassword(w,r);return}
 	pg := s.pg(w)
 	if pg == nil {
 		return
@@ -673,6 +673,7 @@ func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, authErrBadRequest)
 		return
 	}
+	if !strings.EqualFold(req.Username,"ARTEX") {s.memberLogin(w,r,req.Username,req.Password,key);return}
 	hash, ok, err := pg.GetSetting(authPassKey)
 	if err != nil {
 		writeErr(w, 503, authErrDataSourceUnavailable)

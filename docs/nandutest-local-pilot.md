@@ -1,0 +1,75 @@
+# Ñandutest — piloto de LLM local, análisis de código y administración de usuarios
+
+**Estado:** rama experimental, no desplegada a producción. Los archivos de despliegue no instalan automáticamente los modelos ni las imágenes de análisis; deben descargarse en un host privado preparado.
+
+## Alcance implementado
+- Go + PostgreSQL: tabla `ndt_users`, auditoría `ndt_user_audit`; cuenta reservada `ARTEX` conserva el control privilegiado.
+- Interfaz **Sistema → Usuarios**: alta, listado, cambio de rol, desactivación/reactivación, restablecimiento de clave y revocación de sesiones.
+- Inicio de sesión individual; hash bcrypt; JWT con versión revocable; permisos obligatorios en API.
+- El **operador** y el **auditor** están temporalmente limitados a endpoints de consulta expresamente autorizados. **Ningún usuario delegado puede iniciar análisis activos** ni acceder a configuración/credenciales hasta desarrollar permisos por objetivo y tarea.
+- Compose `docker-compose.local-llm.yml`: Ollama separado con `qwen3:4b`, privado dentro de red Docker; endpoint compatible con OpenAI.
+- `scripts/nandutest-pilot.sh`: comprobaciones estáticas sin red mediante Semgrep y Trivy, generación automática de archivos JSON y métricas básicas.
+
+## Requisitos de infraestructura
+La app actual `artex-global-py` (Fly.io, 1 vCPU y 1 GB RAM) **no ejecuta un LLM 4B**. No aumentarle recursos ni desplegar el LLM sobre esa máquina. Para comenzar, usar un **host aislado** con aproximadamente 8 GB RAM disponibles (12–16 GB recomendables para el sistema operativo y otros servicios), 2–4 vCPU, almacenamiento local y sin publicación pública del puerto 11434. El `mem_limit: 6g` es un límite configurable, no consumo medido ni garantía de performance.
+
+## Descarga y arranque en infraestructura privada
+Desde la raíz del fork, con Docker + Compose instalados. `Dockerfile.nandutest` construye el binario y la interfaz **desde este fork** (no desde upstream). El proceso se ejecuta como usuario no privilegiado UID 10001. Preparar el directorio de datos local con permisos para ese usuario (sin cambiar permisos del volumen productivo):
+```bash
+mkdir -p data
+sudo chown -R 10001:10001 data
+```
+Después:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up -d postgres ollama
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec ollama ollama pull qwen3:4b
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec ollama ollama list
+docker compose -f docker-compose.yml -f docker-compose.local-llm.yml up -d artex
+```
+Definir **antes de arrancar** `POSTGRES_PASSWORD` y valores de autenticación bootstrap con los mecanismos ya existentes de Artex; no almacenar claves en git. El placeholder `OPENAI_API_KEY=local-only-ollama` es local y **no** una API key de nube. La conexión es `http://ollama:11434/v1` solo desde la red interna.
+
+**Importante:** Artex prioriza perfiles LLM guardados en PostgreSQL sobre variables de entorno. Si ya existe un perfil guardado, el administrador deberá crear o activar en *Sistema → LLM* un perfil de formato **OpenAI**, modelo **qwen3:4b**, URL **http://ollama:11434/v1** (no exponer URL al navegador) y clave local sin secretos de terceros. Confirmar respuesta de prueba antes de iniciar agentes. No confundir el perfil de desarrollo con un endpoint público.
+
+## Descargar herramientas defensivas e iniciar análisis local
+```bash
+docker pull semgrep/semgrep:latest
+docker pull aquasec/trivy:latest
+mkdir -p data/trivy-cache
+docker run --rm -v "$PWD/data/trivy-cache:/root/.cache/trivy" aquasec/trivy:latest image --download-db-only
+export NANDUTEST_APPROVED_ROOT="/ruta/raiz/de/proyectos-autorizados"
+bash scripts/nandutest-pilot.sh "/ruta/raiz/de/proyectos-autorizados/repositorio"
+```
+El script monta el código **solo lectura**, usa `--network none`, rechaza objetivos externos al directorio autorizado y produce:
+- `data/pilot-reports/<fecha>/semgrep.json`
+- `data/pilot-reports/<fecha>/trivy.json`
+- `data/pilot-reports/<fecha>/metrics.json`
+
+Estas salidas constituyen el **piloto inicial de auditoría estática automatizada**, no escaneo web autónomo ni pruebas de explotación. La carga de estos reportes a los hallazgos de Artex y la orquestación desde su interfaz requieren una integración adicional.
+
+## Medición verificable
+Repetir el mismo conjunto de proyectos y conjunto de pruebas con la misma versión de reglas/herramientas. Registrar: duración p50/p95, uso pico de RAM, CPU pico/medio, porcentaje de trabajos completos, precisión (VP/(VP+FP)) tras revisión, tasa de falsos positivos, hallazgos únicos confirmados, horas de analista y costo total. No reportar mejora porcentual hasta tener una línea de base.
+
+## Criterios obligatorios antes de ponerlo en producción
+1. Ejecutar y aprobar Go build/tests y Next.js build/lint; probar migración con backup/restauración.
+2. Pruebas E2E de login multiusuario, expiración/revocación, RBAC, IDOR y acceso a rutas GET con datos sensibles.
+3. Verificar seguridad del contenedor: autenticación admin, aislamiento de red, protección de volúmenes y secretos; evitar usar `latest` en producción, fijar digests auditados.
+4. Añadir control de objetivos y autorización documentada por usuario, cuota, pausa/cancelación, evidencia, aprobación para pruebas activas.
+5. Construir y validar la **imagen propia del fork** mediante `Dockerfile.nandutest`; `fly.toml` todavía usa el binario upstream y **no despliega estos cambios**.
+6. Mantener la app Fly y volumen existentes sin alteraciones hasta que el piloto esté validado.
+
+## Seguridad de usuarios (Fase 2)
+La política delegada usa una lista explícita de rutas GET; nunca basta que una URL comience por /api/tasks. No se habilitan herramientas, scopes, claves, endpoints de aprobación ni evidencias crudas por ser operaciones GET. La autorización por compañía/proyecto y la segregación de evidencias entre empresas siguen siendo requisitos de producción. En este piloto compartir un mismo entorno con usuarios de distintas empresas **no es aceptable** hasta agregar ese aislamiento.
+
+## Tiempo máximo de ejecución
+Cada comprobación de código tiene un límite de 600 segundos con terminación y escalamiento, 1 GB RAM y 1 CPU; las imágenes deben estar descargadas de antemano y validadas. El LLM no ejecuta comandos del sistema directamente: únicamente interpreta resultados JSON de herramientas aisladas.
+
+## Indicadores y preflight verificables
+La verificación del modelo privado puede ejecutarse dentro de la red Docker mediante `python3 scripts/nandutest_model_preflight.py`. Para obtener KPIs reales: `python3 scripts/nandutest_metrics.py --reports data/pilot-reports --output data/pilot-reports/pilot-dashboard.json`. La precisión necesita un CSV revisado por analista con columnas `run_id,finding_id,verdict` y valores `confirmed` o `false_positive`. No confundir alertas con vulnerabilidades confirmadas. La validación CI no descarga LLM ni realiza pruebas de penetración.
+
+## Chequeo real del modelo dentro de la red privada
+Después de construir Artex, ejecutar: `docker compose -f docker-compose.yml -f docker-compose.local-llm.yml exec -T artex python3 /app/scripts/nandutest_model_preflight.py`. La comprobación usa el nombre DNS interno `ollama` y no publica ningún puerto. La descarga y la inferencia real siguen pendientes de ejecución hasta disponer de infraestructura privada adecuada.
+
+## Producción: rollout seguro por fases
+- En el despliegue sobre Fly.io se mantiene `NANDUTEST_DELEGATED_ENABLED` desactivado. La administración multiusuario funciona, pero las cuentas delegadas **no pueden iniciar sesión** hasta que se implemente autorización por empresa y proyecto. Evita lectura accidental de hallazgos y tareas entre empresas.
+- Reutilizar el volumen original requiere snapshot comprobado y permisos para UID 10001. El entrypoint de la imagen propia solo cambia propietario de `/app/data` y luego ejecuta el proceso como usuario sin privilegios.
+- Nunca ejecutar Ollama 4B en la máquina Fly actual (1 CPU compartida, 1 GB RAM). La integración LLM local está disponible exclusivamente en infraestructura separada y privada.

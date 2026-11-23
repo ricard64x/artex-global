@@ -20,6 +20,7 @@ import {
   Sparkles,
   Target,
   Terminal,
+  Users,
   Wrench,
 } from "lucide-react";
 
@@ -93,6 +94,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "approvals", title: "审批记录", url: "/system/intercept/approvals", icon: ClipboardList },
       { id: "logs", title: "日志", url: "/system/logs", icon: ScrollText },
       { id: "settings", title: "系统配置", url: "/system/settings", icon: Settings2 },
+      { id: "users", title: "Usuarios", url: "/system/users", icon: Users },
     ],
   },
 ];
