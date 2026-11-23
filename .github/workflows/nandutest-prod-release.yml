@@ -8,6 +8,14 @@ on:
       - ".github/workflows/nandutest-prod-release.yml"
       - "server/webui_embed.go"
       - "fly.nandutest.toml"
+      - "server/runtime_inventory.go"
+      - "server/runtime_inventory_test.go"
+      - "Dockerfile.nandutest"
+      - "web/src/app/(main)/system/**"
+      - "web/src/components/ndt/**"
+      - "web/src/lib/api.ts"
+      - "web/src/lib/runtime-inventory.ts"
+      - "web/src/navigation/sidebar/sidebar-items.ts"
   workflow_dispatch:
 
 permissions:
