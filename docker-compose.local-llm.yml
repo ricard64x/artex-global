@@ -19,6 +19,11 @@ services:
     cpus: "2.0"
     # No ports: internal Docker network only
   artex:
+    image: nandutest-local:pilot
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: Dockerfile.nandutest
     depends_on:
       postgres:
         condition: service_healthy
