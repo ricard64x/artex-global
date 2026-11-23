@@ -296,8 +296,29 @@ coverage 每轮导出：`__API_RECON_LOG__`、`__API_RECON_DETAIL__`、`__API_RE
 验证：`window.__API_RECON_PRELOAD__` 存在；业务 path 不回 `/login`。
 
 ```bash
-cd recon && npm install
-node runtime_harvest.js config.json
+# Copiar los scripts a un espacio de trabajo de la tarea, sin modificar el skill.
+# Si la copia ya existe, verificar su origen antes de actualizarla.
+SKILL_ROOT=/app/skills/api-recon
+mkdir -p "$OUTDIR/scripts"
+cp "$SKILL_ROOT/scripts/runtime_harvest.js" "$OUTDIR/scripts/"
+cp "$SKILL_ROOT/scripts/preload.js" "$OUTDIR/scripts/"
+cp "$SKILL_ROOT/scripts/package.json" "$OUTDIR/scripts/"
+cp "$SKILL_ROOT/scripts/package-lock.json" "$OUTDIR/scripts/"
+test -f "$OUTDIR/config.json" || {
+  echo "ERROR: falta config.json de una tarea autorizada. No ejecutar recolección dinámica." >&2
+  exit 1
+}
+test -f "$OUTDIR/scripts/package.json" && test -f "$OUTDIR/scripts/package-lock.json" || {
+  echo "ERROR: falta el manifiesto Node en scripts/. No ejecutar npm." >&2
+  exit 1
+}
+npm ci --ignore-scripts --prefix "$OUTDIR/scripts"
+# Si no hay navegador compatible, no se declara cubierta la fase dinámica.
+command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1 || {
+  echo "PENDIENTE: Chromium no disponible. Conservar resultados estáticos y registrar cobertura dinámica no ejecutada." >&2
+  exit 2
+}
+node "$OUTDIR/scripts/runtime_harvest.js" "$OUTDIR/config.json"
 ```
 
 ### 3b — coverage 动态枚举（必做）

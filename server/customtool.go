@@ -355,6 +355,24 @@ func (s *Server) runCommandTool(ctx context.Context, execRaw json.RawMessage, pa
 		return actool.Errorf(blocked), nil
 	}
 	cmd = adapted
+	workDir := ""
+	if s != nil && s.m != nil {
+		workDir = s.m.dir
+	}
+	if tc != nil && tc.WorkingDir != "" {
+		workDir = tc.WorkingDir
+	}
+	adjusted, npmNote, npmBlocked := agent.AdaptNodeInstallForRuntime(cmd, workDir)
+	if npmBlocked != "" {
+		return actool.Errorf(npmBlocked), nil
+	}
+	cmd = adjusted
+	if npmNote != "" {
+		if note != "" {
+			note += "; "
+		}
+		note += npmNote
+	}
 	// 复用 Bash 也在用的底层 run(经 Bash CoreTool.Call):自动继承安全 floor/超时/
 	// 代理 env/输出溢出。工具与 Bash 平级、共用底层,不经过 Bash 这个工具让模型调。
 	bashIn, _ := json.Marshal(map[string]any{"command": cmd})

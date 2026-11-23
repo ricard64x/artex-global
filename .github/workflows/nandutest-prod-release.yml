@@ -30,6 +30,8 @@ on:
       - "agent/tools.go"
       - "agent/tool_preflight.go"
       - "agent/tool_preflight_test.go"
+      - "agent/node_manifest_preflight_test.go"
+      - "skills/api-recon/**"
       - "server/customtool.go"
       - "server/customtool_test.go"
       - "server/getangiru_bridge_test.go"

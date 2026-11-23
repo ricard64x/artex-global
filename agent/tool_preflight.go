@@ -28,6 +28,19 @@ func (p *runtimePrivilegeTool) Call(ctx context.Context, in json.RawMessage, tc 
 		if err := json.Unmarshal(in, &arg); err == nil {
 			if cmd, ok := arg["command"].(string); ok {
 				updated, n, block := AdaptCommandForRuntime(cmd)
+				if block == "" {
+					var manifestNote, manifestBlock string
+					updated, manifestNote, manifestBlock = adaptNodeInstallForRuntime(updated, tc)
+					if manifestBlock != "" {
+						block = manifestBlock
+					}
+					if manifestNote != "" {
+						if n != "" {
+							n += "; "
+						}
+						n += manifestNote
+					}
+				}
 				if block != "" {
 					return actool.Errorf(block), nil
 				}
@@ -56,9 +69,15 @@ func ExplainToolRuntimeFailure(result actool.Result, note string) actool.Result 
 	if note != "" {
 		result.Content = append(result.Content, llm.TextBlock("\n[Adaptación del ejecutor] "+note))
 	}
-	if IsLocalToolPrivilegeError(result.Flatten()) && !strings.Contains(result.Flatten(), "[Limitación del entorno de ejecución]") {
+	if (IsLocalToolPrivilegeError(result.Flatten()) || IsLocalNodeManifestError(result.Flatten())) && !strings.Contains(result.Flatten(), "[Limitación del entorno de ejecución]") {
 		result.IsError = true
-		result.Content = append(result.Content, llm.TextBlock("\n[Limitación del entorno de ejecución] Se necesitan capacidades locales que esta herramienta no tiene. El comando NO demuestra una vulnerabilidad ni que el objetivo carezca de puertos o servicios. No registrar como hallazgo ni como resultado negativo. Utilizar una alternativa sin privilegios, si existe, o dejar la prueba expresamente pendiente. No utilizar sudo ni elevar permisos automáticamente."))
+		msg := "\n[Limitación del entorno de ejecución] Error operativo local, NO hallazgo del objetivo. No registrar como vulnerabilidad ni como hecho del activo. Verificar requisitos y entorno de ejecución."
+		if IsLocalToolPrivilegeError(result.Flatten()) {
+			msg = "\n[Limitación del entorno de ejecución] Se necesitan capacidades locales que esta herramienta no tiene. El comando NO demuestra una vulnerabilidad ni que el objetivo carezca de puertos o servicios. No registrar como hallazgo ni como resultado negativo. Utilizar una alternativa sin privilegios, si existe, o dejar la prueba expresamente pendiente. No utilizar sudo ni elevar permisos automáticamente."
+		} else if IsLocalNodeManifestError(result.Flatten()) {
+			msg = "\n[Limitación del entorno de ejecución] El npm ENOENT indica que el manifiesto local no está en el directorio usado. Para api-recon, el proyecto Node está en skills/api-recon/scripts/package.json. No demuestra nada sobre el sitio examinado; revisar la ruta y reintentar solo la instalación de dependencias autorizadas."
+		}
+		result.Content = append(result.Content, llm.TextBlock(msg))
 	}
 	return result
 }
@@ -251,4 +270,59 @@ func adaptCommandForRawSocketCapability(cmd string, rawAllowed bool) (string, st
 	}
 	effective := strings.Join(replaced, " ")
 	return effective, "Comando efectivo: " + effective + "; " + strings.Join(note, "; ") + ". Se conservaron los objetivos; las funciones omitidas NO se declaran evaluadas.", ""
+}
+
+// IsLocalNodeManifestError identifies only a manifest-related local npm ENOENT,
+// not a remote HTTP 404 or an arbitrary ENOENT from a target.
+func IsLocalNodeManifestError(text string) bool {
+	v := strings.ToLower(text)
+	return strings.Contains(v, "enoent") &&
+		strings.Contains(v, "package.json") &&
+		(strings.Contains(v, "npm error") || strings.Contains(v, "npm err!"))
+}
+
+// adaptNodeInstallForRuntime prevents npm install in a non-project directory.
+// The authorization gate remains in place; installs cannot silently shift targets.
+func adaptNodeInstallForRuntime(command string, tc *actool.ToolContext) (string, string, string) {
+	working := ""
+	if tc != nil && tc.WorkingDir != "" {
+		working = filepath.Clean(tc.WorkingDir)
+	}
+	return adaptNodeInstallForRuntimeAt(command, working, "/app/skills/api-recon")
+}
+func adaptNodeInstallForRuntimeAt(command, working, root string) (string, string, string) {
+	clean := strings.TrimSpace(command)
+	scripts := root + "/scripts"
+	isRoot := working == root
+	switch clean {
+	case "npm install", "npm ci":
+		if !isRoot {
+			return command, "", ""
+		}
+		if _, err := os.Stat(scripts + "/package.json"); err != nil {
+			return command, "", "Falta el manifiesto del proyecto api-recon en scripts/package.json: no se ejecutó npm ni se declaró terminada la recolección dinámica."
+		}
+		return "npm ci --ignore-scripts --prefix " + scripts,
+			"Instalación dirigida a " + scripts + "/package.json; scripts npm desactivados.", ""
+	case "cd " + root + " && npm install", "cd " + root + " && npm ci":
+		if _, err := os.Stat(scripts + "/package.json"); err != nil {
+			return command, "", "Falta el manifiesto de api-recon en scripts/package.json; instalación no ejecutada."
+		}
+		return "npm ci --ignore-scripts --prefix " + scripts,
+			"Corregida ruta de instalación de api-recon: " + scripts, ""
+	}
+	if isRoot && (strings.HasPrefix(clean, "npm install ") || strings.HasPrefix(clean, "npm ci ")) {
+		return command, "", "api-recon no posee package.json en la raíz. Instalá solo desde scripts/, después de comprobar el manifiesto y el alcance del comando."
+	}
+	return command, "", ""
+}
+
+// AdaptNodeInstallForRuntime is shared by built-in shell and custom command
+// tools. It only changes known api-recon install commands and never broadens
+// authorization or performs dependency installation itself.
+func AdaptNodeInstallForRuntime(command, workingDir string) (string, string, string) {
+	if workingDir == "" {
+		workingDir = "/app"
+	}
+	return adaptNodeInstallForRuntimeAt(command, filepath.Clean(workingDir), "/app/skills/api-recon")
 }
