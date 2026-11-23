@@ -61,6 +61,96 @@ jobs:
           npm run check:i18n
           npm run check
           npm run build:static
+      - name: Test exported embedded frontend routes
+        run: |
+          mkdir -p server/webui/dist
+          cp -a web/out/. server/webui/dist/
+          go test -tags embedui ./server -run '^TestEmbeddedWebUIEntry
+        run: |
+          bash -n scripts/nandutest-pilot.sh
+          python3 -m unittest scripts/test_nandutest_pilot.py -v
+          POSTGRES_PASSWORD=ci-placeholder docker compose -f docker-compose.yml -f docker-compose.local-llm.yml config --quiet
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Validate release permissions and backup prerequisite
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$FLY_API_TOKEN" || { echo "::error::Missing FLY_API_TOKEN; no production change"; exit 1; }
+          echo "Pre-existing data volume snapshot: vs_e5b8v92gO27uQJ8oeXV2JpD"
+          flyctl auth whoami >/dev/null
+          flyctl secrets list -a artex-global-py | grep -q ARTEX_PG_DSN
+          flyctl secrets list -a artex-global-py | grep -q ARTEX_ADMIN_PASSWORD
+      - name: In-place production rollout and automatic rollback on failure
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          attempted=0
+          onexit() {
+            rc=$?
+            if [ "$rc" -ne 0 ] && [ "$attempted" -eq 1 ]; then
+              echo "::error::Release health failed; restoring previously pinned image"
+              flyctl deploy --app artex-global-py --config fly.toml --remote-only --ha=false --strategy immediate --yes || true
+            fi
+            exit "$rc"
+          }
+          trap onexit EXIT
+          attempted=1
+          flyctl deploy --app artex-global-py --config fly.nandutest.toml --dockerfile Dockerfile.nandutest --remote-only --ha=false --strategy immediate --yes
+          ready=0
+          for i in $(seq 1 12); do
+            health="$(curl -fsS --max-time 15 https://artex-global-py.fly.dev/api/health || true)"
+            if HEALTH_JSON="$health" python3 -c 'import json,os; d=json.loads(os.environ["HEALTH_JSON"]); assert d.get("ok") is True and d.get("version") == "nandutest-pilot"' 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::New Ñandutest binary did not respond with expected version"
+            exit 1
+          fi
+          status="$(curl -fsS --max-time 20 https://artex-global-py.fly.dev/api/auth/status)"
+          AUTH_STATUS="$status" python3 -c 'import json,os; d=json.loads(os.environ["AUTH_STATUS"]); assert d.get("initialized") is True'
+          # Give Fly's proxy and replacement Machine time to serve the new
+          # version; an immediate request can still reach the prior release.
+          root_ready=0
+          for i in $(seq 1 24); do
+            root_status="$(curl -sS --max-time 10 -o /dev/null -D /tmp/ndt_root_headers -w '%{http_code}' https://artex-global-py.fly.dev/ || true)"
+            if [ "$root_status" = "302" ] && grep -iq '^location: /login' /tmp/ndt_root_headers; then
+              root_ready=1
+              break
+            fi
+            echo "Root redirect not yet visible (attempt $i, HTTP $root_status)"
+            sleep 4
+          done
+          if [ "$root_ready" != "1" ]; then
+            echo "::error::Root is not redirecting to /login after waiting for Fly proxy"
+            exit 1
+          fi
+          login_html="$(curl -fsS --max-time 15 https://artex-global-py.fly.dev/login)"
+          if echo "$login_html" | grep -q 'id="__next_error__"'; then
+            echo "::error::Login returned Next error shell"
+            exit 1
+          fi
+          echo "$login_html" | grep -q '<html' || { echo "::error::Login HTML missing"; exit 1; }
+          echo "Root redirect and login HTML verified"
+          protected="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://artex-global-py.fly.dev/api/users)"
+          if [ "$protected" != "401" ]; then
+            echo "::error::User-admin API is not protected (HTTP $protected)"
+            exit 1
+          fi
+          attempted=0
+          flyctl status --app artex-global-py
+          echo "Production Ñandutest API smoke checks passed."
+ -count=1
       - name: Offline security pilot smoke tests
         run: |
           bash -n scripts/nandutest-pilot.sh
