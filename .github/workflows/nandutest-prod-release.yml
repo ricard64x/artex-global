@@ -124,15 +124,24 @@ jobs:
         run: |
           set -Eeuo pipefail
           attempted=0
-          # flyctl's machine-status JSON may expose Config.Image rather than config.image.
-          # Inspect string values safely, but never roll back to unrelated/legacy images.
-          previous_image="$(flyctl machine status 48ed55df52e648 -a artex-global-py --json | jq -r '[.. | strings | select(startswith("registry.fly.io/artex-global-py:deployment-"))][0] // empty' || true)"
+          # Capture the previous image through the Machines API before any mutation.
+          # flyctl machine status does not support --json; an empty value made rollback inert.
+          # A failed query, a non-Ñandutest image, or a parsing error blocks deployment.
+          previous_image="$(
+            curl --fail --silent --show-error --connect-timeout 5 --max-time 20 \
+              -H "Authorization: Bearer ${FLY_API_TOKEN}" \
+              "https://api.machines.dev/v1/apps/artex-global-py/machines/48ed55df52e648" |
+              jq -er '.config.image | select(type == "string" and startswith("registry.fly.io/artex-global-py:deployment-"))'
+          )"
+          echo "Previous Ñandutest image captured for automatic rollback."
           onexit() {
             rc=$?
             if [ "$rc" -ne 0 ] && [ "$attempted" -eq 1 ]; then
               if [[ "$previous_image" == registry.fly.io/artex-global-py:deployment-* ]]; then
                 echo "::warning::Release failed. Restoring last known Ñandutest image."
-                flyctl deploy --app artex-global-py --config fly.nandutest.toml --image "$previous_image" --remote-only --ha=false --strategy immediate --yes || true
+                if ! flyctl deploy --app artex-global-py --config fly.nandutest.toml --image "$previous_image" --remote-only --ha=false --strategy immediate --yes; then
+                  echo "::error::Automatic rollback failed; operator intervention required."
+                fi
               else
                 echo "::error::Release verification failed. Previous image is not verified Ñandutest; refusing legacy ARTEX rollback. Inspect current instance."
               fi
