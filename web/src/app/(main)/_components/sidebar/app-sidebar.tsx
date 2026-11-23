@@ -22,6 +22,8 @@ import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
 import { SidebarSupportCard } from "./sidebar-support-card";
 
+const delegatedItems = new Set(["dashboard", "tasks", "findings", "assets"]);
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentUser = useCurrentUser();
   const { sidebarVariant, sidebarCollapsible, isSynced } = usePreferencesStore(
@@ -54,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain
           items={sidebarItems.map((group) => ({
             ...group,
-            items: group.items.filter((item) => currentUser.role === "superadmin" || ["dashboard", "tasks", "findings", "assets"].includes(item.id)),
+            items: group.items.filter((item) => currentUser.role === "superadmin" || delegatedItems.has(item.id)),
           }))}
         />
         {/* <NavDocuments items={data.documents} /> */}
