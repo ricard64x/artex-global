@@ -116,3 +116,11 @@ El flujo protegido 45110366168 pasó CI y desplegó, pero una comprobación HTTP
 - Se configuró el secreto Fly `GETANGIRU_READ_ENABLED=1` para la próxima publicación protegida; la activación real requiere comprobar que el proceso incorpora el secreto y que los endpoints de la aplicación responden.
 
 **Costo y reversión:** mantener siempre activo Getangiru es facturable en CPU/RAM según tarifa Sprites. Para recuperar suspensión automática, detener el servicio `nandutest-memory-availability` y dejar expirar o eliminar `/v1/tasks/nandutest-memory-6pn`; configurar `GETANGIRU_READ_ENABLED=0` si se deshabilita su conexión. No es una solución de coste cero. Documentación: https://docs.fly.io/sprites/keeping-sprites-running
+
+## Activación final verificada — 23/11/2026
+
+El flujo protegido de Ñandutest `45113843055` terminó `success`. App Fly: `artex-global-py`, release `13`, imagen `registry.fly.io/artex-global-py:deployment-01M83BT9S96HJ9A7QAD7H6JTE2`. Confirmaciones desde la máquina: `GETANGIRU_READ_ENABLED=1` presente en entorno, `/api/health` HTTP 200 (`nandutest-pilot`), endpoint `/api/runtime/getangiru` HTTP 401 sin sesión, GET directo autenticado a `sprite-getangiru._peer.internal:18080` HTTP 200 (múltiples pruebas), Qwen no alterado.
+
+El servicio de disponibilidad `nandutest-memory-availability` renueva automáticamente el Task de cinco minutos `nandutest-memory-6pn` cada 45 segundos. Se confirmó actualización de `started_at/expires_at` (ej.: caducidad `2026-11-23T04:57:01Z`). La API de estado Sprites puede mostrar `cold` incluso mientras las consultas funcionan, por lo que la verificación operativa debe basarse en pruebas HTTP directas repetidas, estado del Task y logs del servicio, no solo en el campo `status` del listado. La garantía a largo plazo requiere monitoreo continuo de disponibilidad; esta es una comprobación puntual, no una certificación de SLO mensual.
+
+**Rollback inmediato:** establecer `GETANGIRU_READ_ENABLED=0` en secretos y publicar con workflow protegido. Para permitir inactividad, detener `nandutest-memory-availability` y eliminar `/v1/tasks/nandutest-memory-6pn` o dejarlo vencer (≤5 minutos). Nota de costos: el Sprite se factura mientras se mantiene activo.
