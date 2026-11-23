@@ -4,6 +4,7 @@
 // are passed through and formatted at the call site.
 
 import type { ChatMention } from "@/lib/chat-mentions";
+import type { RuntimeInventory } from "@/lib/runtime-inventory";
 import { MOCK } from "@/lib/mock/enabled";
 import { mockHandle } from "@/lib/mock/handler";
 import type {
@@ -247,6 +248,7 @@ function interceptPageQuery(page: number, size: number, filter: InterceptApprova
 export const api = {
   // 后端应用版本号（release 时由 ldflags 注入，默认 "dev"）。
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
+  runtimeInventory: () => get<RuntimeInventory>("/runtime/inventory"),
 
   // ---- auth ----
   authStatus: () => get<{ initialized: boolean; setup_token_required?: boolean }>("/auth/status"),

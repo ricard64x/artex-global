@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RuntimeLLMStatus } from "@/components/ndt/runtime-llm-status";
 import { api } from "@/lib/api";
 import type { LLMPoolMember, LLMPoolStatus, LLMProfile, LLMRetryOverride } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -843,6 +844,8 @@ export default function LLMPage() {
           </Button>
         </div>
       </div>
+
+      <RuntimeLLMStatus />
 
       <Tabs defaultValue="profiles" className="flex-1">
         <TabsList>
