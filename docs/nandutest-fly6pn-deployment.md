@@ -82,3 +82,23 @@ La operación es **parcialmente implementada** hasta verificar conexión real de
 6. Validar peticiones autenticadas de extremo a extremo antes de activar `GETANGIRU_READ_ENABLED=1` o seleccionar Qwen como perfil principal.
 
 **Nota:** el sistema de GitHub Issues de `ricard64x/artex-global` está deshabilitado (HTTP 410), por lo que este runbook es el registro operativo de este bloqueo.
+
+## Evidencia operacional posterior a instalación (23/11/2026)
+
+| Comprobación | Resultado |
+| --- | --- |
+| `fly6pn` / `fly6pn-dns` en ambos Sprites | servicios en ejecución, handshake presente |
+| DNS privado desde máquina Ñandutest | ambos nombres `._peer.internal` resuelven |
+| Gateway Qwen sin token desde Fly | HTTP 401 (acceso protegido) |
+| Qwen `/v1/models` autenticado desde Fly | HTTP 200 |
+| Qwen `/v1/chat/completions` autenticado desde Fly | HTTP 200, respuesta no vacía, 34 tokens, 0.596 s observados (una muestra, no p95) |
+| Getangiru búsqueda autenticada desde Fly | HTTP 200 una vez, `space=nandutest`, lista vacía |
+| Getangiru estabilidad de acceso entrante | **fallida**: tres pruebas consecutivas posteriores HTTP 000 por timeout; sin prueba estable |
+| Controles Ñandutest sin autenticación | HTTP 401 en rutas de Getangiru y prueba de modelo |
+| Salud Ñandutest después de recuperación | HTTP 200, `version=nandutest-pilot` |
+
+### Incidente de despliegue y corrección
+
+El flujo protegido 45110366168 pasó CI y desplegó, pero una comprobación HTTP agotó el plazo y ejecutó un rollback incorrecto a `ghcr.io/jiwoochris/artex-global:v0.3.15-global.1`, que no era la imagen anterior de Ñandutest. Se corrigió `.github/workflows/nandutest-prod-release.yml` para reintentar rutas protegidas y prohibir ese rollback a una imagen heredada. El flujo posterior 45110948679 terminó con éxito: imagen `registry.fly.io/artex-global-py:deployment-01M83A4ATJQZ3GZFKH5K1N53C7`, release 12, salud HTTP 200 y secretos del gateway Qwen presentes en el entorno.
+
+**Decisión de habilitación:** Getangiru permanece deshabilitado por inestabilidad del peer entrante. Qwen quedó comprobado como servicio de inferencia privado, pero no se alteró el perfil por defecto del usuario. No confundir prueba HTTP de una muestra con confiabilidad, p95 ni ahorro demostrado. La disponibilidad sostenida de Getangiru requiere diagnóstico de WireGuard/6PN y pruebas repetidas antes de activar `GETANGIRU_READ_ENABLED=1`.
