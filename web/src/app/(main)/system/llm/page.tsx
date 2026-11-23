@@ -16,6 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { GetangiruIntegration } from "@/components/ndt/getangiru-integration";
 import { RuntimeLLMStatus } from "@/components/ndt/runtime-llm-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -764,7 +765,7 @@ export default function LLMPage() {
           hint: m.last_error,
         };
       }
-      return { label: t("health.ok"), cls: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400" };
+      return { label: t("health.ok"), cls: "border-border text-muted-foreground" };
     },
     [t],
   );
@@ -846,6 +847,8 @@ export default function LLMPage() {
       </div>
 
       <RuntimeLLMStatus />
+
+      <GetangiruIntegration />
 
       <Tabs defaultValue="profiles" className="flex-1">
         <TabsList>

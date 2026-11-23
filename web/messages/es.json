@@ -3269,7 +3269,7 @@
       "tripped": "Circuito abierto",
       "trippedCooldown": "Circuito abierto · {cooldown}",
       "degraded": "Degradado · {fails} fallos",
-      "ok": "Correcto"
+      "ok": "Sin fallos observados"
     },
     "pool": {
       "title": "Rotación de LLM · failover",
