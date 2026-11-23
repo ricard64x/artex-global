@@ -268,6 +268,19 @@ export const api = {
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
   runtimeInventory: () => get<RuntimeInventory>("/runtime/inventory"),
   getangiruStatus: () => get<GetangiruRuntimeStatus>("/runtime/getangiru"),
+  nandutestLLMRouting: () =>
+    get<{
+      mode: "qwen" | "openai" | "qwen_failover" | "openai_failover" | "none";
+      primary: string;
+      failover: boolean;
+      qwen_configured: boolean;
+      qwen_profile: boolean;
+      openai_profile: boolean;
+      local_model: string;
+      note: string;
+    }>("/runtime/shared-model/routing"),
+  setNandutestLLMRouting: (mode: "qwen" | "openai" | "qwen_failover" | "openai_failover") =>
+    post<{ mode: string; primary: string; failover: boolean }>("/runtime/shared-model/routing", { mode }),
   getangiruSearch: (query: string) => post<GetangiruSearchResult>("/runtime/getangiru/search", { query }),
   getangiruFeedback: (source_id: string, verdict: GetangiruVerdict) =>
     post<{ ok: boolean }>("/runtime/getangiru/feedback", { source_id, verdict }),
