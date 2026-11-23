@@ -83,3 +83,17 @@ func TestGetangiruDisabledAndNoSharedModelByDefault(t *testing.T) {
 	if cfg,_:=getangiruSettings();cfg!=nil {t.Fatal("memory bridge must be off by default")}
 	if cfg,_:=sharedModelSettings();cfg!=nil {t.Fatal("shared model must not claim readiness by default")}
 }
+
+func TestFeedbackLabelsAcceptOnlyReviewedSourceIDs(t *testing.T) {
+	for _, v := range []string{"confirmado","descartado","desactualizado"} {
+		if !validMemoryFeedback("doc:control-1",v) {t.Fatalf("expected review label valid: %s",v)}
+	}
+	for _, tc := range []struct{ source,verdict string }{
+		{"../../../etc/passwd","confirmado"},
+		{"ok","training"},
+		{"","confirmado"},
+		{strings.Repeat("x",97),"descartado"},
+	} {
+		if validMemoryFeedback(tc.source,tc.verdict) {t.Errorf("invalid feedback accepted: %+v",tc)}
+	}
+}
