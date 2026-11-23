@@ -117,8 +117,8 @@ jobs:
           test -n "$FLY_API_TOKEN" || { echo "::error::Missing FLY_API_TOKEN; no production change"; exit 1; }
           echo "Pre-existing data volume snapshot: vs_e5b8v92gO27uQJ8oeXV2JpD"
           flyctl auth whoami >/dev/null
-          flyctl secrets list -a artex-global-py | grep -q ARTEX_PG_DSN
-          flyctl secrets list -a artex-global-py | grep -q ARTEX_ADMIN_PASSWORD
+          flyctl secrets list -a artex-global-py | grep -F ARTEX_PG_DSN >/dev/null
+          flyctl secrets list -a artex-global-py | grep -F ARTEX_ADMIN_PASSWORD >/dev/null
       - name: In-place production rollout and automatic rollback on failure
         shell: bash
         run: |
