@@ -102,3 +102,17 @@ La operación es **parcialmente implementada** hasta verificar conexión real de
 El flujo protegido 45110366168 pasó CI y desplegó, pero una comprobación HTTP agotó el plazo y ejecutó un rollback incorrecto a `ghcr.io/jiwoochris/artex-global:v0.3.15-global.1`, que no era la imagen anterior de Ñandutest. Se corrigió `.github/workflows/nandutest-prod-release.yml` para reintentar rutas protegidas y prohibir ese rollback a una imagen heredada. El flujo posterior 45110948679 terminó con éxito: imagen `registry.fly.io/artex-global-py:deployment-01M83A4ATJQZ3GZFKH5K1N53C7`, release 12, salud HTTP 200 y secretos del gateway Qwen presentes en el entorno.
 
 **Decisión de habilitación:** Getangiru permanece deshabilitado por inestabilidad del peer entrante. Qwen quedó comprobado como servicio de inferencia privado, pero no se alteró el perfil por defecto del usuario. No confundir prueba HTTP de una muestra con confiabilidad, p95 ni ahorro demostrado. La disponibilidad sostenida de Getangiru requiere diagnóstico de WireGuard/6PN y pruebas repetidas antes de activar `GETANGIRU_READ_ENABLED=1`.
+
+## Solución de suspensión de Getangiru — 23/11/2026
+
+**Causa verificada:** `get_sprite_info` reportó `getangiru` como `cold` mientras Tenonderã permanecía `running`. Los servicios WireGuard/HTTP pueden aparecer configurados pero una suspensión del Sprite congela las conexiones entrantes 6PN y las conexiones salientes. Reiniciar `fly6pn` produjo una ventana breve de 4× HTTP 200, pero la conectividad fallaba de nuevo después de 1–2 minutos. Reducir `PersistentKeepalive` de 15 s a 5 s no resolvió el problema: fue revertido a 15 s.
+
+**Corrección aplicada, con Tasks API oficial de Sprites:**
+- Servicio administrado de Getangiru: `nandutest-memory-availability`, programa `/home/sprite/getangiru/keep_private_memory_online.py`.
+- Renueva `PUT /v1/tasks/nandutest-memory-6pn` con `expire=5m` cada 45 s mientras la API local `127.0.0.1:8080/health` devuelva HTTP 200.
+- El task mantiene el Sprite en estado `running`. Si el servicio mantenedor se detiene o deja de renovar, el task expira automáticamente y no sigue incurriendo en cargos indefinidos por un task abandonado.
+- Verificado `get_sprite_info.status=running`, renovación de `expires_at`, acceso entrante directo autenticado HTTP 200 (5/5 + 5/5 muestras, latencias observadas 272–283 ms), rechazo HTTP 401 sin credenciales, HTTP 422 para otro espacio, método POST no admitido (HTTP 501).
+- Relay temporal a través de Tenonderã instalado para probar ruta alternativa; **retirado** y eliminadas sus claves y scripts tras confirmar la solución directa. Tenonderã mantiene el Qwen original sin cambios.
+- Se configuró el secreto Fly `GETANGIRU_READ_ENABLED=1` para la próxima publicación protegida; la activación real requiere comprobar que el proceso incorpora el secreto y que los endpoints de la aplicación responden.
+
+**Costo y reversión:** mantener siempre activo Getangiru es facturable en CPU/RAM según tarifa Sprites. Para recuperar suspensión automática, detener el servicio `nandutest-memory-availability` y dejar expirar o eliminar `/v1/tasks/nandutest-memory-6pn`; configurar `GETANGIRU_READ_ENABLED=0` si se deshabilita su conexión. No es una solución de coste cero. Documentación: https://docs.fly.io/sprites/keeping-sprites-running
