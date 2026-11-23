@@ -64,3 +64,22 @@ Revertir con GETANGIRU_READ_ENABLED=0 y retirando la configuración del modelo. 
 Las caídas del túnel 6PN de Getangiru se debían a la suspensión por inactividad del Sprite (`cold`). Se instaló `nandutest-memory-availability` con heartbeat de la Tasks API oficial (`nandutest-memory-6pn`, TTL 5 minutos, renovación cada 45 segundos). Verificados: Getangiru en `running`, 10/10 consultas autenticadas directas HTTP 200, HTTP 401 sin autorización, HTTP 422 fuera del espacio `nandutest` y escritura no soportada. La ruta alterna temporal en Tenonderã fue eliminada; se usa directamente `sprite-getangiru._peer.internal:18080`. El secreto `GETANGIRU_READ_ENABLED=1` fue preparado en Fly, pendiente de inclusión efectiva mediante release protegido y validación de UI.
 
 Impacto: Getangiru se mantiene activo y consume CPU/RAM facturables mientras presta el servicio. Reversión: deshabilitar lectura y detener `nandutest-memory-availability` para permitir suspensión.
+
+
+## Integración automática con agentes y revisión humana — 23/11/2026
+
+El motor `taskLLMRuntime` prepara una consulta de memoria contextual para cada tarea, independientemente de que el turno lo ejecute el agente principal, el planificador o un worker. Se comparte una caché temporal por tarea y se limita el tráfico a **150 búsquedas/día** dentro de la cuota general vigente de **20/minuto y 200/día**. La búsqueda usa el prefijo exacto `ndt-task-{id} | ` para impedir cruces entre las tareas 5 y 50; se recuperan hasta 20 entradas y se inyectan como máximo dos, con longitud recortada, sin contenido sensible ni instrucciones ejecutables. **Únicamente las fuentes con veredicto humano `confirmado` se inyectan.** La falta de memoria no interrumpe pruebas autorizadas.
+
+Tras `record_fact`, el resumen autorizado se encola de forma idempotente en PostgreSQL, con `source_id=ndt-task-{taskID}-fact-{factID}`. El sincronizador procesa hasta cinco hechos por ciclo, con reintentos acotados. Las credenciales de escritura y lectura son independientes; el gateway privado de Getangiru solo admite `GET /v1/memories/search` y `POST /v1/memories/episodes` bajo el tenant y espacio `nandutest`. No se copian transcripciones completas, secretos ni evidencias originales. Las entradas sincronizadas conservan un estado **pendiente de revisión humana** antes de su uso.
+
+### Observabilidad y control
+
+- `GET /api/runtime/getangiru/metrics?task_id=5`: métricas persistidas en PostgreSQL: consultas reales, aciertos, errores, memoria inyectada, tiempos y sincronización diaria. Separadas de los tokens LLM.
+- `POST /api/runtime/getangiru/agent-check`: prueba de solo lectura por tarea, sin ejecutar el pentest ni gastar tokens.
+- `GET /api/runtime/getangiru/review-queue?task_id=5`: inspección humana de hechos sincronizados, con aprobación por la ruta existente de feedback.
+- El panel Sistema → LLM muestra contadores y barras históricas y permite filtrar por tarea.
+- Activación controlada: `GETANGIRU_AUTO_READ_ENABLED=1` y `GETANGIRU_AUTO_WRITE_ENABLED=1`, después de pasar smoke tests. Ambas desactivadas de forma predeterminada; el sistema original conserva su comportamiento si se revierten.
+- Fallos de red o memoria se registran como `error` o `unavailable`, sin alterar los hechos de la tarea.
+- Para la tarea 5 cerrada, la incorporación de hechos históricos requiere selección y revisión explícita; no se reinician automáticamente las pruebas.
+
+**Riesgos residuales:** Getangiru debe permanecer despierto para ofrecer servicio continuo; la detección de datos sensibles mediante expresiones regulares no sustituye clasificación DLP integral. Los eventos de memoria reflejan disponibilidad y utilización, **no** precisión del modelo ni porcentaje real de vulnerabilidades detectadas.

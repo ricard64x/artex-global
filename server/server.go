@@ -364,6 +364,7 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 	} else {
 		log.Printf("[engine] no LLM provider configured - engine idle until set via /api/llm or env")
 	}
+	s.startAutomaticMemorySync()
 	s.restoreTaskRuntimes()
 	go s.reconcileConcurrency()
 	s.startTaskArchiveWorker()
@@ -779,6 +780,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runtime/inventory", s.runtimeInventory)
 	mux.HandleFunc("GET /api/runtime/getangiru", s.getangiruStatus)
 	mux.HandleFunc("POST /api/runtime/getangiru/search", s.getangiruSearch)
+	mux.HandleFunc("GET /api/runtime/getangiru/metrics", s.getAutomaticMemoryMetrics)
+	mux.HandleFunc("GET /api/runtime/getangiru/review-queue", s.getAutomaticMemoryReviewQueue)
+	mux.HandleFunc("POST /api/runtime/getangiru/agent-check", s.checkAutomaticMemoryForTask)
 	mux.HandleFunc("POST /api/runtime/getangiru/feedback", s.submitMemoryFeedback)
 	mux.HandleFunc("POST /api/runtime/shared-model/test", s.sharedModelTest)
 	mux.HandleFunc("GET /api/runtime/shared-model/routing", s.getNandutestRouting)

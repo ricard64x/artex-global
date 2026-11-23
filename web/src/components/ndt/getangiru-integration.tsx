@@ -10,10 +10,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import type { GetangiruRuntimeStatus, GetangiruSearchResult, GetangiruVerdict } from "@/lib/getangiru";
+import type {
+  GetangiruAutomaticMetrics,
+  GetangiruRuntimeStatus,
+  GetangiruSearchResult,
+  GetangiruVerdict,
+} from "@/lib/getangiru";
 
 export function GetangiruIntegration() {
   const [status, setStatus] = React.useState<GetangiruRuntimeStatus | null>(null);
+  const [autoMetrics, setAutoMetrics] = React.useState<GetangiruAutomaticMetrics | null>(null);
+  const [taskFilter, setTaskFilter] = React.useState("");
+  const [diagnosing, setDiagnosing] = React.useState(false);
+  const [diagnosticResult, setDiagnosticResult] = React.useState<string | null>(null);
+  const [reviewQueue, setReviewQueue] = React.useState<import("@/lib/getangiru").GetangiruReviewQueue | null>(null);
+  const [reviewBusy, setReviewBusy] = React.useState("");
+  const [metricsTaskId, setMetricsTaskId] = React.useState<number | undefined>(undefined);
   const [query, setQuery] = React.useState("");
   const [searchResult, setSearchResult] = React.useState<GetangiruSearchResult | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -29,15 +41,20 @@ export function GetangiruIntegration() {
   const refresh = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [runtime, routes] = await Promise.all([api.getangiruStatus(), api.nandutestLLMRouting()]);
+      const [runtime, routes, metrics] = await Promise.all([
+        api.getangiruStatus(),
+        api.nandutestLLMRouting(),
+        api.getangiruAutomaticMetrics(metricsTaskId),
+      ]);
       setStatus(runtime);
       setRouting(routes);
+      setAutoMetrics(metrics);
     } catch (error) {
       toast.error("No se pudo obtener el estado de Getangiru: " + String(error));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [metricsTaskId]);
 
   React.useEffect(() => {
     void refresh();
@@ -128,6 +145,14 @@ export function GetangiruIntegration() {
 
   const memory = status?.memory;
   const model = status?.model;
+  const metricSum = (operation: string, outcome?: string, field: "calls" | "items" = "calls") =>
+    autoMetrics?.operations
+      .filter((entry) => entry.operation === operation && (!outcome || entry.outcome === outcome))
+      .reduce((sum, entry) => sum + entry[field], 0) ?? 0;
+  const lookupCount = metricSum("retrieval");
+  const lookupHits = metricSum("retrieval", "hit");
+  const injected = metricSum("injection", "approved", "items");
+  const dailyMax = Math.max(1, ...(autoMetrics?.daily.map((day) => day.lookups) ?? []));
   let memoryLabel = "Desconectada";
   if (memory?.connected) memoryLabel = "Conexión comprobada";
   else if (memory?.enabled) memoryLabel = "Configurada · sin probar";
@@ -226,6 +251,170 @@ export function GetangiruIntegration() {
             </p>
           )}
         </div>
+        <div className="space-y-3 rounded-lg border p-3">
+          <p className="font-semibold">Memoria en ejecución · métricas reales</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              className="w-40"
+              type="number"
+              min="1"
+              value={taskFilter}
+              onChange={(event) => setTaskFilter(event.target.value)}
+              placeholder="ID de tarea, ej. 5"
+              aria-label="Filtrar métricas de memoria por tarea"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                const id = Number(taskFilter);
+                if (!Number.isSafeInteger(id) || id < 1) {
+                  toast.error("Indicá un identificador de tarea válido");
+                  return;
+                }
+                setMetricsTaskId(id);
+                try {
+                  setReviewQueue(await api.getangiruReviewQueue(id));
+                } catch {
+                  setReviewQueue(null);
+                }
+              }}
+            >
+              Ver tarea
+            </Button>
+            {metricsTaskId && (
+              <Button size="sm" variant="outline" onClick={() => setMetricsTaskId(undefined)}>
+                Todas
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={diagnosing || !autoMetrics?.auto_read_enabled}
+              onClick={async () => {
+                const id = Number(taskFilter);
+                if (!Number.isSafeInteger(id) || id < 1) {
+                  toast.error("Indicá el ID de la tarea que querés verificar");
+                  return;
+                }
+                setDiagnosing(true);
+                try {
+                  const result = await api.getangiruAgentCheck(id);
+                  setDiagnosticResult(
+                    "Tarea #" +
+                      id +
+                      ": " +
+                      result.retrieved +
+                      " memorias recuperadas y " +
+                      result.approved +
+                      " aprobadas para el LLM. Sin ejecutar pruebas de intrusión.",
+                  );
+                  setMetricsTaskId(id);
+                } catch (error) {
+                  setDiagnosticResult("No se pudo comprobar el acceso del agente: " + String(error));
+                } finally {
+                  setDiagnosing(false);
+                }
+              }}
+            >
+              {diagnosing ? "Verificando..." : "Probar consulta del agente"}
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              {metricsTaskId ? `Tarea #${metricsTaskId}` : "Todas las tareas"}
+            </span>
+          </div>
+          {diagnosticResult && (
+            <p role="status" className="text-xs">
+              {diagnosticResult}
+            </p>
+          )}
+          {reviewQueue && reviewQueue.items.length > 0 && (
+            <div className="space-y-2">
+              <p className="font-medium text-sm">Memorias de la tarea #{reviewQueue.task_id} · revisión humana</p>
+              {reviewQueue.items.slice(0, 20).map((item) => (
+                <div key={item.source_id} className="rounded border p-2 text-xs">
+                  <p className="break-words">{item.content}</p>
+                  <p className="text-muted-foreground">
+                    {item.state === "synced" ? "Almacenada en Getangiru" : "Pendiente de sincronizar"}
+                    {" · "} {item.verdict}
+                  </p>
+                  {item.remote_id && item.state === "synced" && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(["confirmado", "descartado", "desactualizado"] as const).map((verdict) => (
+                        <Button
+                          key={verdict}
+                          size="sm"
+                          variant="outline"
+                          disabled={reviewBusy !== ""}
+                          onClick={async () => {
+                            setReviewBusy(item.source_id);
+                            try {
+                              await api.getangiruFeedback(item.remote_id, verdict);
+                              setReviewQueue(await api.getangiruReviewQueue(reviewQueue.task_id));
+                              await refresh();
+                              toast.success("Revisión de memoria registrada");
+                            } catch (error) {
+                              toast.error("No se pudo revisar la memoria: " + String(error));
+                            } finally {
+                              setReviewBusy("");
+                            }
+                          }}
+                        >
+                          {verdict}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-muted-foreground text-xs">
+            Recuperación automática del contexto por tarea; las memorias se presentan al LLM solamente después de una
+            confirmación humana. Datos separados del consumo de tokens.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground text-xs">Consultas automáticas</p>
+              <p className="font-semibold tabular-nums">{lookupCount}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Consultas con resultados</p>
+              <p className="font-semibold tabular-nums">{lookupHits}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Fuentes aprobadas inyectadas</p>
+              <p className="font-semibold tabular-nums">{injected}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-xs">Hechos enviados / pendientes</p>
+              <p className="font-semibold tabular-nums">
+                {autoMetrics?.synced_facts ?? 0} / {autoMetrics?.queued_facts ?? 0}
+              </p>
+            </div>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Lectura automática: {autoMetrics?.auto_read_enabled ? "activa" : "desactivada"} · Escritura de hechos:{" "}
+            {autoMetrics?.auto_write_enabled ? "activa" : "desactivada"} · Las consultas vacías no se cuentan como
+            aciertos.
+          </p>
+          {autoMetrics && autoMetrics.daily.length > 0 && (
+            <div className="space-y-1">
+              {autoMetrics.daily.slice(-7).map((day) => (
+                <div key={day.day} className="flex items-center gap-2 text-xs">
+                  <span className="w-20 shrink-0 text-muted-foreground">{day.day}</span>
+                  <div className="h-2 flex-1 rounded bg-muted" aria-hidden="true">
+                    <div
+                      className="h-full rounded bg-primary"
+                      style={{ width: `${(day.lookups / dailyMax) * 100}%` }}
+                    />
+                  </div>
+                  <span className="w-20 text-right tabular-nums">{day.lookups} consultas</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2 rounded-lg border p-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -272,7 +461,9 @@ export function GetangiruIntegration() {
             <p className="text-muted-foreground">{model?.reason || "Consultando configuración..."}</p>
             <p className="text-muted-foreground text-xs">Modelo: {model?.model || "Sin conexión privada"}</p>
             <p className="text-muted-foreground text-xs">
-              El perfil GPT externo continúa activo hasta validar y seleccionar el modelo autohospedado.
+              {model?.active_for_nandutest
+                ? "Qwen local es el modelo principal. OpenAI se utiliza como respaldo si está habilitado el modo failover."
+                : "Qwen disponible; el modelo principal depende del perfil activo y de las políticas de failover."}
             </p>
             <Button
               size="sm"

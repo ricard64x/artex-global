@@ -51,12 +51,13 @@ func compactIntents(ns []*db.Node, parentsOf, yieldsOf map[int64][]int64) []map[
 // ToolSet exposes the PG-backed dual graph (asset + exploration) to an LLM agent.
 // One ToolSet is created per planner/worker run; per-run signals live here.
 type ToolSet struct {
-	findingRecorder FindingRecorder
-	as              *db.AssetStore   // asset store (optional; nil = asset tools not available)
-	cs              *db.CompanyStore // company store (optional)
-	ts              *db.ExplorationStore
-	worker          string
-	taskID          int64 // PG tasks.id; 0 when unknown (tests / orchestrator cross-task reads)
+	findingRecorder   FindingRecorder
+	memoryFactCapture func(taskID, factID int64, summary, confidence string)
+	as                *db.AssetStore   // asset store (optional; nil = asset tools not available)
+	cs                *db.CompanyStore // company store (optional)
+	ts                *db.ExplorationStore
+	worker            string
+	taskID            int64 // PG tasks.id; 0 when unknown (tests / orchestrator cross-task reads)
 	// coverageDisabled mirrors tasks.coverage_enabled=false. Stored inverted so the
 	// zero value (all existing ToolSet constructions) means ENABLED — matching the
 	// DB default (true). When true: graphOverviewData drops the coverage block, the
@@ -167,6 +168,12 @@ func NewToolSet(ts *db.ExplorationStore, worker string) *ToolSet {
 // SetTaskID sets the PG task id on this ToolSet so that report_finding can
 // dual-write to the standalone findings table (which survives task deletion).
 func (t *ToolSet) SetTaskID(id int64) { t.taskID = id }
+
+// SetMemoryFactCapture is an optional durable, review-gated memory outbox hook.
+// Failure never rolls back the already persisted task fact.
+func (t *ToolSet) SetMemoryFactCapture(fn func(taskID, factID int64, summary, confidence string)) {
+	t.memoryFactCapture = fn
+}
 
 // SetCoverageEnabled records whether this task has the asset-coverage feature on
 // (default enabled). Passing false makes graphOverviewData omit the coverage block
@@ -1353,6 +1360,9 @@ func (t *ToolSet) recordOneFact(it factItem, defaultIntent int64) (int64, error)
 		_ = t.ts.Link(intent, db.RelYields, id) // chain: intent -> fact
 	}
 	t.writes.Facts++
+	if t.memoryFactCapture != nil && t.taskID > 0 {
+		t.memoryFactCapture(t.taskID, id, it.Summary, it.Confidence)
+	}
 	return id, nil
 }
 

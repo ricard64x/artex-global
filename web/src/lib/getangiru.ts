@@ -14,6 +14,8 @@ export interface GetangiruRuntimeStatus {
     };
     reviewed_sources: Record<string, number>;
     auto_learning: boolean;
+    automatic_read: boolean;
+    automatic_ingest: boolean;
   };
   model: {
     configured: boolean;
@@ -46,3 +48,38 @@ export interface GetangiruSearchResult {
 }
 
 export type GetangiruVerdict = "confirmado" | "descartado" | "desactualizado";
+
+// Durable Getangiru utilization. These are memory API events, not LLM tokens.
+export interface GetangiruAutomaticMetrics {
+  auto_read_enabled: boolean;
+  auto_write_enabled: boolean;
+  queued_facts: number;
+  synced_facts: number;
+  task_id?: number;
+  scope: string;
+  operations: Array<{
+    operation: string;
+    outcome: string;
+    calls: number;
+    items: number;
+    avg_latency_ms: number;
+  }>;
+  daily: Array<{
+    day: string;
+    lookups: number;
+    hits: number;
+    injected: number;
+  }>;
+}
+
+export interface GetangiruReviewQueue {
+  task_id: number;
+  note: string;
+  items: Array<{
+    source_id: string;
+    remote_id: string;
+    content: string;
+    state: "pending" | "synced";
+    verdict: string;
+  }>;
+}

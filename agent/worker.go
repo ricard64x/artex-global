@@ -52,17 +52,18 @@ type WebSearchOpts struct {
 }
 
 type Worker struct {
-	findingRecorder FindingRecorder
-	prov            llm.Provider
-	model           string
-	workDir         string
-	proxyAddr       string
-	proxyCACert     string            // recording proxy's CA cert path (for WebFetch HTTPS verify)
-	webSearch       WebSearchOpts     // web_search tool backend selection (off by default)
-	tx              *transcript.Store // raw LLM conversation persistence (nil = off)
-	window          int               // context window in tokens (for compaction)
-	windowFn        func() int        // optional dynamic task-chain minimum
-	maxTurns        int               // max agent turns per run (0 = unlimited)
+	findingRecorder   FindingRecorder
+	memoryFactCapture func(taskID, factID int64, summary, confidence string)
+	prov              llm.Provider
+	model             string
+	workDir           string
+	proxyAddr         string
+	proxyCACert       string            // recording proxy's CA cert path (for WebFetch HTTPS verify)
+	webSearch         WebSearchOpts     // web_search tool backend selection (off by default)
+	tx                *transcript.Store // raw LLM conversation persistence (nil = off)
+	window            int               // context window in tokens (for compaction)
+	windowFn          func() int        // optional dynamic task-chain minimum
+	maxTurns          int               // max agent turns per run (0 = unlimited)
 	// runTimeout is the wall-clock budget for the main exploration of one intent
 	// (0 = unlimited). When it fires, the run is cut and a settlement round is
 	// forced so already-identified facts get written back instead of being lost.
@@ -114,6 +115,11 @@ func hasWorkerChatMessage(messages []llm.Message, requestID string) bool {
 // SetNonStreaming wires a resolver deciding whether runs use the non-streaming
 // model path (true = non-streaming). nil/unset = streaming (default). Read per
 // run so a profile or task-chain toggle takes effect without rebuilding.
+// SetMemoryFactCapture connects verified graph writes to the durable memory outbox.
+func (w *Worker) SetMemoryFactCapture(fn func(taskID, factID int64, summary, confidence string)) {
+	w.memoryFactCapture = fn
+}
+
 func (w *Worker) SetNonStreaming(fn func() bool) { w.nonStreamingFn = fn }
 
 func (w *Worker) nonStreaming() bool { return w.nonStreamingFn != nil && w.nonStreamingFn() }
@@ -360,6 +366,7 @@ func (w *Worker) ExecuteWithMessage(ctx context.Context, name string, taskID int
 
 func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.AssetStore, ts *db.ExplorationStore, intent *db.Node, hooks harness.HookRunner, emit func(db.Activity), enr EnrichTrigger, notifyFinding func(int64, string), requestID, message string) (harness.TerminalReason, WriteCounts, error) {
 	tsx := NewToolSet(ts, name)
+	tsx.SetMemoryFactCapture(w.memoryFactCapture)
 	tsx.SetFindingRecorder(w.findingRecorder)
 	tsx.SetTaskID(taskID)
 	coverageEnabled := as == nil || as.CoverageEnabled(taskID)

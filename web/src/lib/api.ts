@@ -268,6 +268,24 @@ export const api = {
   health: () => get<{ ok: boolean; service: string; version: string }>("/health"),
   runtimeInventory: () => get<RuntimeInventory>("/runtime/inventory"),
   getangiruStatus: () => get<GetangiruRuntimeStatus>("/runtime/getangiru"),
+  getangiruAgentCheck: (taskId: number) =>
+    post<{
+      ok: boolean;
+      task_id: number;
+      retrieved: number;
+      approved: number;
+      cached: boolean;
+      model_called: boolean;
+      note: string;
+    }>("/runtime/getangiru/agent-check", { task_id: taskId }),
+  getangiruReviewQueue: (taskId: number) =>
+    get<import("@/lib/getangiru").GetangiruReviewQueue>(
+      "/runtime/getangiru/review-queue?task_id=" + encodeURIComponent(taskId),
+    ),
+  getangiruAutomaticMetrics: (taskId?: number) =>
+    get<import("@/lib/getangiru").GetangiruAutomaticMetrics>(
+      "/runtime/getangiru/metrics" + (taskId ? "?task_id=" + encodeURIComponent(taskId) : ""),
+    ),
   nandutestLLMRouting: () =>
     get<{
       mode: "qwen" | "openai" | "qwen_failover" | "openai_failover" | "none";

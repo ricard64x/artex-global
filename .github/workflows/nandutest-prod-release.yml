@@ -17,6 +17,7 @@ on:
       - "web/src/lib/runtime-inventory.ts"
       - "web/src/navigation/sidebar/sidebar-items.ts"
       - "server/getangiru_bridge.go"
+      - "server/task_memory*.go"
       - "llmpool/**"
       - "agent/provider.go"
       - "agent/provider_window_test.go"
