@@ -177,16 +177,18 @@ export function GetangiruIntegration() {
         <div className="space-y-2 rounded-lg border p-3">
           <p className="font-semibold">Prioridad de modelos · Ñandutest</p>
           <p className="text-muted-foreground text-xs">
-            Elegí un motor primario. El modo failover envía la solicitud a OpenAI solo cuando
-            Qwen no responde o falla; nunca ejecuta ambos modelos en paralelo.
+            Elegí un motor primario. El modo failover envía la solicitud a OpenAI solo cuando Qwen no responde o falla;
+            nunca ejecuta ambos modelos en paralelo.
           </p>
           <div className="flex flex-wrap gap-2">
-            {([
-              ["qwen_failover", "Qwen primario · OpenAI respaldo"],
-              ["qwen", "Solo Qwen local"],
-              ["openai_failover", "OpenAI primario · Qwen respaldo"],
-              ["openai", "Solo OpenAI"],
-            ] as const).map(([mode, label]) => (
+            {(
+              [
+                ["qwen_failover", "Qwen primario · OpenAI respaldo"],
+                ["qwen", "Solo Qwen local"],
+                ["openai_failover", "OpenAI primario · Qwen respaldo"],
+                ["openai", "Solo OpenAI"],
+              ] as const
+            ).map(([mode, label]) => (
               <Button
                 key={mode}
                 size="sm"
@@ -213,9 +215,9 @@ export function GetangiruIntegration() {
                       : "Verificando el orden real de los modelos..."}
           </p>
           <p className="text-muted-foreground text-xs">
-            Las tareas con un modelo fijado explícitamente pueden conservar su selección.
-            Qwen es un modelo pequeño y limitado; si una tarea supera su capacidad, el failover
-            permite mantener el servicio, con posible consumo de la API de OpenAI.
+            Las tareas con un modelo fijado explícitamente pueden conservar su selección. Qwen es un modelo pequeño y
+            limitado; si una tarea supera su capacidad, el failover permite mantener el servicio, con posible consumo de
+            la API de OpenAI.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
