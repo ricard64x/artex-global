@@ -56,7 +56,7 @@ func ExplainToolRuntimeFailure(result actool.Result, note string) actool.Result 
 	if note != "" {
 		result.Content = append(result.Content, llm.TextBlock("\n[Adaptación del ejecutor] "+note))
 	}
-	if IsLocalToolPrivilegeError(result.Flatten()) {
+	if IsLocalToolPrivilegeError(result.Flatten()) && !strings.Contains(result.Flatten(), "[Limitación del entorno de ejecución]") {
 		result.IsError = true
 		result.Content = append(result.Content, llm.TextBlock("\n[Limitación del entorno de ejecución] Se necesitan capacidades locales que esta herramienta no tiene. El comando NO demuestra una vulnerabilidad ni que el objetivo carezca de puertos o servicios. No registrar como hallazgo ni como resultado negativo. Utilizar una alternativa sin privilegios, si existe, o dejar la prueba expresamente pendiente. No utilizar sudo ni elevar permisos automáticamente."))
 	}
