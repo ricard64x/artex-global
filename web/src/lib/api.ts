@@ -214,6 +214,23 @@ export function sseUrl(path: string): string {
 const get = <T>(p: string) => http<T>(p);
 const post = <T>(p: string, body?: unknown) =>
   http<T>(p, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+
+// Cap integration diagnostics so a disconnected Sprite cannot leave the UI spinning.
+// Only test calls use this bound; ordinary user/API requests retain their own behavior.
+const postDiagnostic = async <T>(p: string, body: unknown, timeoutMs = 30000): Promise<T> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await http<T>(p, { method: "POST", body: JSON.stringify(body), signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Tiempo de espera agotado. Revisá el estado de Fly6PN y volvé a intentar.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 const put = <T>(p: string, body?: unknown) =>
   http<T>(p, { method: "PUT", body: body ? JSON.stringify(body) : undefined });
 const patch = <T>(p: string, body?: unknown) =>
@@ -255,7 +272,9 @@ export const api = {
   getangiruFeedback: (source_id: string, verdict: GetangiruVerdict) =>
     post<{ ok: boolean }>("/runtime/getangiru/feedback", { source_id, verdict }),
   getangiruSharedModelTest: () =>
-    post<{ ok: boolean; model: string; latency_ms: number }>("/runtime/shared-model/test", {}),
+    postDiagnostic<{ ok: boolean; model: string; latency_ms: number }>("/runtime/shared-model/test", {}, 30000),
+  getangiruConnectivityTest: () =>
+    postDiagnostic<GetangiruSearchResult>("/runtime/getangiru/search", { query: "verificacion sintetica de conectividad" }, 8000),
 
   // ---- auth ----
   authStatus: () => get<{ initialized: boolean; setup_token_required?: boolean }>("/auth/status"),
