@@ -115,9 +115,7 @@ export function GetangiruIntegration() {
             <div className="flex flex-wrap items-center gap-2">
               <Database className="size-4" />
               <span className="font-medium">Memoria Getangiru</span>
-              <Badge variant={memory?.connected ? "default" : "outline"}>
-                {memoryLabel}
-              </Badge>
+              <Badge variant={memory?.connected ? "default" : "outline"}>{memoryLabel}</Badge>
             </div>
             <p className="text-muted-foreground">{memory?.reason || "Consultando configuración..."}</p>
             <p className="text-muted-foreground text-xs">{memory?.scope || "Ámbito todavía no configurado"}</p>
