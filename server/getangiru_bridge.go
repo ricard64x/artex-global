@@ -30,6 +30,7 @@ type getangiruService struct {
 	baseURL string
 	token string
 	space string
+	edgeToken string
 }
 
 type localModelService struct {
@@ -113,7 +114,7 @@ func getangiruSettings() (*getangiruService,string) {
 	if err!=nil {return nil,"dirección privada pendiente de configuración"}
 	token:=os.Getenv("GETANGIRU_TENANT_TOKEN")
 	if len(token)<24 {return nil,"credencial exclusiva de Getangiru no configurada"}
-	return &getangiruService{baseURL:base,token:token,space:os.Getenv("GETANGIRU_MEMORY_SPACE")},"configurado sin verificación"
+	return &getangiruService{baseURL:base,token:token,space:os.Getenv("GETANGIRU_MEMORY_SPACE"),edgeToken:os.Getenv("GETANGIRU_SPRITE_EDGE_TOKEN")},"configurado sin verificación"
 }
 
 func sharedModelSettings() (*localModelService,string) {
@@ -163,7 +164,13 @@ func getangiruRequest(ctx context.Context,cfg *getangiruService,q string) ([]mem
 	defer cancel()
 	req,err:=http.NewRequestWithContext(ctx,http.MethodGet,dest.String(),nil)
 	if err!=nil{return nil,err}
-	req.Header.Set("Authorization","Bearer "+cfg.token)
+	if cfg.edgeToken!="" {
+		// Sprite authenticates the transport; Getangiru authenticates the tenant separately.
+		req.Header.Set("Authorization","Bearer "+cfg.edgeToken)
+		req.Header.Set("X-Getangiru-Tenant-Token",cfg.token)
+	} else {
+		req.Header.Set("Authorization","Bearer "+cfg.token)
+	}
 	req.Header.Set("Accept","application/json")
 	resp,err:=boundedServiceClient(2800*time.Millisecond).Do(req)
 	if err!=nil{return nil,errors.New("Getangiru no responde")}
