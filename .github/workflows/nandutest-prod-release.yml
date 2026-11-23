@@ -1,4 +1,5 @@
 name: Ñandutest production guarded release
+# Retry 2: generic failed-login responses retained for legacy ARTEX compatibility.
 
 on:
   push:
