@@ -274,7 +274,11 @@ export const api = {
   getangiruSharedModelTest: () =>
     postDiagnostic<{ ok: boolean; model: string; latency_ms: number }>("/runtime/shared-model/test", {}, 30000),
   getangiruConnectivityTest: () =>
-    postDiagnostic<GetangiruSearchResult>("/runtime/getangiru/search", { query: "verificacion sintetica de conectividad" }, 8000),
+    postDiagnostic<GetangiruSearchResult>(
+      "/runtime/getangiru/search",
+      { query: "verificacion sintetica de conectividad" },
+      8000,
+    ),
 
   // ---- auth ----
   authStatus: () => get<{ initialized: boolean; setup_token_required?: boolean }>("/auth/status"),
