@@ -21,7 +21,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -tags embedui -trimpath \
 # tooling) while replacing the application binary with our audited fork.
 FROM ghcr.io/jiwoochris/artex-global:v0.3.15-global.1
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends gosu \
+  && sed -i 's/Components: main/Components: main non-free/' /etc/apt/sources.list.d/debian.sources \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends gosu nikto whatweb sslscan gobuster ffuf \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --home /app --shell /usr/sbin/nologin artex
 WORKDIR /app

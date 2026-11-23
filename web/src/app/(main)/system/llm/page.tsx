@@ -16,6 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { RuntimeLLMStatus } from "@/components/ndt/runtime-llm-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -843,6 +844,8 @@ export default function LLMPage() {
           </Button>
         </div>
       </div>
+
+      <RuntimeLLMStatus />
 
       <Tabs defaultValue="profiles" className="flex-1">
         <TabsList>
