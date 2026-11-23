@@ -56,3 +56,9 @@ Repetir el mismo conjunto de proyectos y conjunto de pruebas con la misma versi�
 4. Añadir control de objetivos y autorización documentada por usuario, cuota, pausa/cancelación, evidencia, aprobación para pruebas activas.
 5. Construir y validar la **imagen propia del fork** mediante `Dockerfile.nandutest`; `fly.toml` todavía usa el binario upstream y **no despliega estos cambios**.
 6. Mantener la app Fly y volumen existentes sin alteraciones hasta que el piloto esté validado.
+
+## Seguridad de usuarios (Fase 2)
+La política delegada usa una lista explícita de rutas GET; nunca basta que una URL comience por /api/tasks. No se habilitan herramientas, scopes, claves, endpoints de aprobación ni evidencias crudas por ser operaciones GET. La autorización por compañía/proyecto y la segregación de evidencias entre empresas siguen siendo requisitos de producción. En este piloto compartir un mismo entorno con usuarios de distintas empresas **no es aceptable** hasta agregar ese aislamiento.
+
+## Tiempo máximo de ejecución
+Cada comprobación de código tiene un límite de 600 segundos con terminación y escalamiento, 1 GB RAM y 1 CPU; las imágenes deben estar descargadas de antemano y validadas. El LLM no ejecuta comandos del sistema directamente: únicamente interpreta resultados JSON de herramientas aisladas.

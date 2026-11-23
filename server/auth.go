@@ -125,15 +125,14 @@ func signJWT(key []byte) (string, error) {
 	}).SignedString(key)
 }
 
-// verifyJWT returns true when tokenStr is a valid, non-expired HS256 token.
+// verifyJWT accepts only privileged ARTEX tokens, never member tokens.
+// Checking a signature alone is insufficient when keys are reused or migrated.
 func verifyJWT(tokenStr string, key []byte) bool {
-	t, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
+	claims := &jwt.RegisteredClaims{}
+	t, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
 		return key, nil
-	})
-	return err == nil && t.Valid
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
+	return err == nil && t.Valid && claims.Subject == "ARTEX"
 }
 
 // signingKey derives the HS256 key that signs and verifies tokens for the given

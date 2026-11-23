@@ -21,6 +21,9 @@ func TestDelegatedEndpointDenyByDefault(t *testing.T){
  allowed:=[]string{"/api/tasks","/api/tasks/42","/api/report","/api/exploration/findings","/api/stats"}
  denied:=[]string{
   "/api/llm","/api/settings","/api/users","/api/workspace/download",
+  "/api/tasks/42/intercept-rules","/api/tasks/42/scope",
+  "/api/tasks/42/chat/status","/api/tasks/42/llm/resolution",
+  "/api/exploration/activity/stream","/api/exploration/findings/export",
   "/api/traffic/blob","/api/intercept/pending","/api/mcp",
   "/api/update/check","/api/agents","/api/logs","/api/llm/records",
   "/api/skills","/api/chat","/api/asset-intercept/rules",

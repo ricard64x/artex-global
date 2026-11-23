@@ -80,22 +80,49 @@ func (s *Server) authPrincipal(token string) (memberIdentity,bool) {
  return memberIdentity{},false
 }
 
-// Read-only delegated roles: deliberately no generic GET fallthrough. Some GET
-// handlers expose API keys, workspace content, raw requests or attack tooling.
+// Read-only delegated roles: explicit minimal allowlist, no prefix wildcards.
+// A GET can still expose tools, secrets, raw evidence or modify run state.
+var delegatedExactReads = map[string]bool{
+	"/api/stats": true,
+	"/api/report": true,
+	"/api/tasks": true,
+	"/api/task-categories": true,
+	"/api/task-templates": true,
+	"/api/assets": true,
+	"/api/assets/counts": true,
+	"/api/companies": true,
+	"/api/exploration/findings": true,
+	"/api/exploration/findings/groups": true,
+	"/api/exploration/findings/stats": true,
+	"/api/exploration/findings/asset-tree": true,
+	"/api/tokens/usage": true,
+	"/api/tokens/daily": true,
+	"/api/commands/stats": true,
+}
+
+// The ID predicate deliberately excludes slashes, dots, encodings and wildcards.
+var delegatedResourceID = regexp.MustCompile("^[A-Za-z0-9_-]{1,128}$")
+
 func delegatedReadAllowed(path string) bool {
- exact:=map[string]bool{
-  "/api/health":true,"/api/stats":true,"/api/audit":true,"/api/report":true,
-  "/api/tokens/usage":true,"/api/tokens/daily":true,"/api/commands/stats":true,
- }
- if exact[path] {return true}
- for _,prefix:=range []string{
-  "/api/tasks", "/api/task-categories", "/api/task-templates",
-  "/api/assets", "/api/companies", "/api/exploration/findings",
-  "/api/exploration/activity", "/api/exploration/tokens",
- } {
-  if path==prefix || strings.HasPrefix(path,prefix+"/"){return true}
- }
- return false
+	if delegatedExactReads[path] {
+		return true
+	}
+	segments := strings.Split(strings.TrimPrefix(path, "/api/"), "/")
+	if len(segments) == 2 && delegatedResourceID.MatchString(segments[1]) {
+		return segments[0] == "tasks" || segments[0] == "companies"
+	}
+	if len(segments) == 3 && segments[0] == "tasks" && delegatedResourceID.MatchString(segments[1]) {
+		switch segments[2] {
+		case "coverage", "coverage-graph", "asset-refs":
+			return true
+		}
+	}
+	if len(segments) == 3 && segments[0] == "exploration" && segments[1] == "findings" &&
+		delegatedResourceID.MatchString(segments[2]) {
+		// Do not expose /retests, /lineage or raw evidence to read-only users.
+		return segments[2] != "export"
+	}
+	return false
 }
 
 func memberPasswordOK(password string) bool {

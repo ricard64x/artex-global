@@ -5,6 +5,7 @@ set -Eeuo pipefail
 umask 077
 if [[ $# -ne 1 ]]; then echo "Uso: $0 <ruta-de-codigo-autorizada>" >&2; exit 2; fi
 if ! command -v docker >/dev/null; then echo "Docker es obligatorio." >&2; exit 2; fi
+if ! command -v timeout >/dev/null; then echo "Se requiere timeout (coreutils) para limitar cada ejecución." >&2; exit 2; fi
 : "$NANDUTEST_APPROVED_ROOT"
 target="$(realpath "$1")"
 approved="$(realpath "$NANDUTEST_APPROVED_ROOT")"
@@ -23,7 +24,7 @@ for img in semgrep/semgrep:latest aquasec/trivy:latest; do
 done
 start_epoch="$(date +%s)"
 semgrep_exit=0
-docker run --rm --network none --memory 1g --cpus 1 \
+timeout --signal=TERM --kill-after=15s 600s timeout --signal=TERM --kill-after=15s 600s docker run --rm --network none --memory 1g --cpus 1 --pids-limit 128 --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cap-drop ALL --security-opt no-new-privileges \
  -v "$target:/src:ro" -v "$base/pilot-rules:/rules:ro" -v "$out:/out" \
  semgrep/semgrep:latest semgrep scan --config /rules --metrics off --json --output /out/semgrep.json /src || semgrep_exit=$?
 semgrep_end="$(date +%s)"
