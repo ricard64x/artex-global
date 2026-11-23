@@ -21,16 +21,19 @@ for img in semgrep/semgrep:latest aquasec/trivy:latest; do
   exit 4
  fi
 done
+start_epoch="$(date +%s)"
 semgrep_exit=0
 docker run --rm --network none --memory 1g --cpus 1 \
  -v "$target:/src:ro" -v "$base/pilot-rules:/rules:ro" -v "$out:/out" \
  semgrep/semgrep:latest semgrep scan --config /rules --metrics off --json --output /out/semgrep.json /src || semgrep_exit=$?
+semgrep_end="$(date +%s)"
 trivy_exit=0
 docker run --rm --network none --memory 1g --cpus 1 \
  -v "$target:/src:ro" -v "$base/data/trivy-cache:/root/.cache/trivy" -v "$out:/out" \
  aquasec/trivy:latest fs --skip-db-update --offline-scan --scanners vuln,secret \
  --format json --output /out/trivy.json /src || trivy_exit=$?
-python3 - "$out" "$semgrep_exit" "$trivy_exit" <<'PY'
+trivy_end="$(date +%s)"
+python3 - "$out" "$semgrep_exit" "$trivy_exit" "$start_epoch" "$semgrep_end" "$trivy_end" <<'PY'
 import json,sys,datetime,pathlib
 out=pathlib.Path(sys.argv[1])
 def load(name):
@@ -45,6 +48,9 @@ summary={
  "semgrep_findings":len(sem.get("results") or []),
  "trivy_findings":trivy_findings,
  "semgrep_exit":int(sys.argv[2]),"trivy_exit":int(sys.argv[3]),
+ "semgrep_seconds":int(sys.argv[5])-int(sys.argv[4]),
+ "trivy_seconds":int(sys.argv[6])-int(sys.argv[5]),
+ "scan_total_seconds":int(sys.argv[6])-int(sys.argv[4]),
  "fully_completed":sys.argv[2]=="0" and sys.argv[3]=="0",
  "metrics_note":"Los hallazgos exigen verificación humana."
 }
