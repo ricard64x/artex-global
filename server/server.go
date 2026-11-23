@@ -775,6 +775,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/runtime/inventory", s.runtimeInventory)
+	mux.HandleFunc("GET /api/runtime/getangiru", s.getangiruStatus)
+	mux.HandleFunc("POST /api/runtime/getangiru/search", s.getangiruSearch)
+	mux.HandleFunc("POST /api/runtime/shared-model/test", s.sharedModelTest)
 	mux.HandleFunc("GET /api/stats", s.stats)
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
