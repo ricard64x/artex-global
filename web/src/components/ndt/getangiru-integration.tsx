@@ -160,7 +160,7 @@ export function GetangiruIntegration() {
                 <p role="status" aria-live="polite" className="text-muted-foreground text-xs">
                   {memoryTestResult}
                 </p>
-              )
+              )}
             </div>
             <p className="text-muted-foreground text-xs">
               Revisadas: {memory?.reviewed_sources.confirmado ?? 0} confirmadas ·
@@ -194,7 +194,7 @@ export function GetangiruIntegration() {
               <p role="status" aria-live="polite" className="text-muted-foreground text-xs">
                 {modelResult}
               </p>
-            )
+            )}
           </div>
         </div>
 
