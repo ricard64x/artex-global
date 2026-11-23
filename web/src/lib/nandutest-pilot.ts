@@ -82,3 +82,11 @@ export interface PilotLabResult {
   real_access_demonstrated: false;
   note: string;
 }
+
+// Ticket validation mirrors the server's Go regexp. A human-readable
+// authorization reference may include accented letters, but never controls.
+const pilotTicketPattern = /^[\p{L}\p{N}][\p{L}\p{N}\p{M} _./:#(),-]{7,127}$/u;
+
+export function isPilotApprovalTicketValid(value: string): boolean {
+  return pilotTicketPattern.test(value.trim());
+}
