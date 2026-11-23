@@ -80,8 +80,10 @@ export function GetangiruIntegration() {
       const result = await api.getangiruConnectivityTest();
       setMemoryTestResult(
         "Conexión de memoria verificada. " +
-        String(result.latency_ms ?? 0) +
-        " ms; " + result.items.length + " coincidencias en consulta sintética."
+          String(result.latency_ms ?? 0) +
+          " ms; " +
+          result.items.length +
+          " coincidencias en consulta sintética.",
       );
       await refresh();
     } catch (error) {
@@ -145,11 +147,20 @@ export function GetangiruIntegration() {
               {memory?.metrics.p95_ms ?? 0} ms
             </p>
             <div className="space-y-1">
-              <Button size="sm" variant="outline" onClick={() => void testMemory()} disabled={!memory?.enabled || memoryTesting}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void testMemory()}
+                disabled={!memory?.enabled || memoryTesting}
+              >
                 <ShieldCheck className="size-4" />
                 {memoryTesting ? "Verificando memoria (máx. 8 s)..." : "Probar conexión de memoria"}
               </Button>
-              {memoryTestResult && <p role="status" aria-live="polite" className="text-muted-foreground text-xs">{memoryTestResult}</p>}
+              {memoryTestResult && (
+                <p role="status" aria-live="polite" className="text-muted-foreground text-xs">
+                  {memoryTestResult}
+                </p>
+              )
             </div>
             <p className="text-muted-foreground text-xs">
               Revisadas: {memory?.reviewed_sources.confirmado ?? 0} confirmadas ·
