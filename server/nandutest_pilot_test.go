@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,28 @@ func TestPilotPassiveRejectsBeforeNetwork(t *testing.T) {
 		status, elapsed, outcome, reason := pilotPassiveHTTPS(context.Background(), name)
 		if status != 0 || elapsed != 0 || outcome != "blocked" || reason != "invalid_host" {
 			t.Fatalf("unexpected local request result %q: %d %d %s %s", name, status, elapsed, outcome, reason)
+		}
+	}
+}
+
+func TestPilotTicketPatternUnicodeAndBoundaries(t *testing.T) {
+	for _, ticket := range []string{
+		"CHG-2026-00123",
+		"Autorización de auditoría #2026-011",
+		"Aprobación de Ñandutest",
+		"Prueba (CISO), solicitud 03/11/2026",
+		"A1234567",
+	} {
+		if !pilotTicketPattern.MatchString(ticket) {
+			t.Errorf("valid approval reference rejected: %q", ticket)
+		}
+	}
+	for _, ticket := range []string{
+		"", "abc", "#12345678", "Autorización\ninterna 2026",
+		"A\t1234567", "A<script>12345", strings.Repeat("á", 129),
+	} {
+		if pilotTicketPattern.MatchString(ticket) {
+			t.Errorf("invalid approval reference accepted: %q", ticket)
 		}
 	}
 }
