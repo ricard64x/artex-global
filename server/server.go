@@ -774,6 +774,7 @@ func (s *Server) Handler() http.Handler {
  mux.HandleFunc("POST /api/users/{id}/password", s.resetUserPassword)
 
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("GET /api/runtime/inventory", s.runtimeInventory)
 	mux.HandleFunc("GET /api/stats", s.stats)
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
