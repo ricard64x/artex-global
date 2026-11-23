@@ -346,6 +346,8 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 		go s.discoverEmptyMCPsOnStartup()
 		logSink.SetDB(ctx, m.pg) // restore last 100 log rows and enable async persistence
 	}
+	// Explicit rollout only; a failed private inference leaves the old provider unchanged.
+	s.bootstrapNandutestRouting()
 	// precedence: persisted DB config > env.
 	if cfg, ok := s.loadLLMConfig(); ok {
 		if err := s.applyLLM(cfg); err != nil {
@@ -779,6 +781,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/runtime/getangiru/search", s.getangiruSearch)
 	mux.HandleFunc("POST /api/runtime/getangiru/feedback", s.submitMemoryFeedback)
 	mux.HandleFunc("POST /api/runtime/shared-model/test", s.sharedModelTest)
+	mux.HandleFunc("GET /api/runtime/shared-model/routing", s.getNandutestRouting)
+	mux.HandleFunc("POST /api/runtime/shared-model/routing", s.setNandutestRouting)
 	mux.HandleFunc("GET /api/stats", s.stats)
 	mux.HandleFunc("GET /api/logs", s.getLogs)
 	mux.HandleFunc("GET /api/logs/history", s.getLogsHistory)
