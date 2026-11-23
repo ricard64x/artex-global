@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { isPilotApprovalTicketValid } from "@/lib/nandutest-pilot";
 
 import type { TaskPilotState } from "./pilot-controls";
 
@@ -63,9 +64,15 @@ export function PilotTab({
     });
   }, [status]);
 
+  const ticketValid = isPilotApprovalTicketValid(ticket);
+
   const authorize = async () => {
-    if (!domain || !ticket.trim() || ticket.trim().length < 8) {
-      toast.error("Indicá un objetivo autorizado y una referencia de aprobación de al menos 8 caracteres");
+    if (!domain) {
+      toast.error("Elegí un dominio que esté en el alcance autorizado");
+      return;
+    }
+    if (!ticketValid) {
+      toast.error("Referencia inválida: usá 8 a 128 caracteres; letras, números, espacios o . _ / : # ( ) , -");
       return;
     }
     const hrs = Number(expiryHours);
@@ -197,9 +204,12 @@ export function PilotTab({
                 id="pilot-approval-ticket"
                 value={ticket}
                 onChange={(e) => setTicket(e.target.value)}
-                placeholder="Ej. CHG-2026-00123"
+                placeholder="Ej. Autorización de auditoría #2026-011"
                 disabled={working || !canAuthorize}
               />
+              <p className="text-xs text-muted-foreground">
+                Usá entre 8 y 128 caracteres; se admiten letras con tildes, números, espacios y . _ / : # ( ) , -
+              </p>
             </label>
             <label className="space-y-1 text-sm">
               <span>Vencimiento</span>
@@ -232,7 +242,7 @@ export function PilotTab({
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => void authorize()}
-              disabled={working || !canAuthorize || !domain || ticket.trim().length < 8}
+              disabled={working || !canAuthorize || !domain || !ticketValid}
             >
               <ShieldCheckIcon className="mr-2 h-4 w-4" />
               {approved ? "Renovar autorización" : "Activar piloto automático"}
