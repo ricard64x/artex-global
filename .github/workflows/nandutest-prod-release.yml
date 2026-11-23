@@ -74,7 +74,7 @@ jobs:
         run: |
           npm ci
           npm run check:i18n
-          npm run check -- --max-diagnostics=1200
+          npm run check
           npm run build:static
       - name: Test exported embedded frontend routes
         run: |
