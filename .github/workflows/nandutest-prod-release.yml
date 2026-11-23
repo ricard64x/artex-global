@@ -16,6 +16,13 @@ on:
       - "web/src/lib/api.ts"
       - "web/src/lib/runtime-inventory.ts"
       - "web/src/navigation/sidebar/sidebar-items.ts"
+      - "server/getangiru_bridge.go"
+      - "server/getangiru_bridge_test.go"
+      - "server/getangiru_feedback.go"
+      - "server/server.go"
+      - "web/src/components/ndt/getangiru-integration.tsx"
+      - "web/src/lib/getangiru.ts"
+      - "docs/nandutest-getangiru-bridge.md"
   workflow_dispatch:
 
 permissions:
@@ -156,6 +163,17 @@ jobs:
             echo "::error::User-admin API is not protected (HTTP $protected)"
             exit 1
           fi
+          for path in /api/runtime/getangiru /api/runtime/getangiru/search /api/runtime/getangiru/feedback /api/runtime/shared-model/test; do
+            method=GET
+            case "$path" in
+              */search|*/feedback|*/test) method=POST ;;
+            esac
+            code="$(curl -sS --connect-timeout 3 --max-time 15 -o /dev/null -w '%{http_code}' -X "$method" "https://artex-global-py.fly.dev$path")"
+            if [ "$code" != "401" ]; then
+              echo "::error::Getangiru bridge route $path not access-controlled: HTTP $code"
+              exit 1
+            fi
+          done
           attempted=0
           flyctl status --app artex-global-py
           echo "Production Ñandutest API smoke checks passed."
