@@ -38,3 +38,10 @@ func TestDelegatedProductionDisabledByDefault(t *testing.T) {
  t.Setenv("NANDUTEST_DELEGATED_ENABLED","true")
  if delegatedPilotEnabled() { t.Fatal("only explicit 1 enables delegated pilot") }
 }
+
+func TestDisableSelfUpdateNotAllowedForDelegatedUsers(t *testing.T) {
+  t.Setenv("NANDUTEST_DELEGATED_ENABLED","1")
+  for _,p:=range []string{"/api/update/apply","/api/update/rollback"} {
+    if delegatedReadAllowed(p){t.Fatalf("delegated update endpoint exposed: %s",p)}
+  }
+}

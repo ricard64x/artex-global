@@ -462,6 +462,10 @@ func (s *Server) requireAuth(h http.Handler) http.Handler {
   if extractToken(r)==""{writeErr(w,401,authErrUnauthorized);return}
   who,ok:=s.authPrincipal(extractToken(r))
   if !ok{writeErr(w,401,authErrTokenInvalid);return}
+  if os.Getenv("NANDUTEST_DISABLE_SELFUPDATE")=="1" &&
+    (p=="/api/update/apply" || p=="/api/update/rollback"){
+    writeErr(w,403,"Las actualizaciones automáticas están deshabilitadas para esta versión");return
+  }
   if who.Role!="superadmin" && (!delegatedPilotEnabled() || !(r.Method==http.MethodGet && delegatedReadAllowed(p))){
    writeErr(w,403,"Acceso denegado: el perfil delegado solo puede consultar información autorizada");return
   }

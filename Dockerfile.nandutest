@@ -17,9 +17,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -tags embedui -trimpath \
   -ldflags "-s -w -buildid= -X main.version=nandutest-pilot" \
   -o /out/artex ./cmd/artex
 
-FROM debian:bookworm-slim
+# Preserve the original runtime tools (Node/Playwright, nmap, DNS and browser
+# tooling) while replacing the application binary with our audited fork.
+FROM ghcr.io/jiwoochris/artex-global:v0.3.15-global.1
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates tzdata curl python3 gosu \
+  && apt-get install -y --no-install-recommends gosu \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --home /app --shell /usr/sbin/nologin artex
 WORKDIR /app
