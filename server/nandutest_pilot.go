@@ -33,7 +33,42 @@ var pilotSchema = struct {
 }{}
 var pilotRunMu sync.Mutex
 var pilotHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
-var pilotTicketPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9 _./:#-]{7,127}$`)
+var pilotTicketPattern = regexp.MustCompile(`^[\pL\pN][\pL\pN\pM _./:#(),-]{7,127}package server
+
+// Ñandutest controlled pilot: administrator approval is separate from task scope.
+// Only a single, bounded, passive HTTPS HEAD request may be scheduled. No
+// exploitation, login attempts, discovery of additional hosts or model prompts
+// are run in the background by this subsystem.
+import (
+	"context"
+	"crypto/tls"
+	"database/sql"
+	"errors"
+	"net"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/Autumn-27/artex/db"
+)
+
+const pilotMaxDays = 7
+const pilotMinInterval = 60
+const pilotMaxInterval = 1440
+
+var pilotSchema = struct {
+	sync.Mutex
+	ready bool
+}{}
+var pilotRunMu sync.Mutex
+var pilotHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+)
 
 type pilotAuthorization struct {
 	TaskID          int64      `json:"task_id"`
@@ -371,9 +406,16 @@ func (s *Server) pilotApprove(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "La autorización debe vencer entre 15 minutos y 7 días")
 		return
 	}
-	if req.Mode != "passive_https" || !pilotTicketPattern.MatchString(strings.TrimSpace(req.Ticket)) ||
-		req.IntervalMinutes < pilotMinInterval || req.IntervalMinutes > pilotMaxInterval {
-		writeErr(w, 422, "Se requiere modo passive_https, ticket de aprobación y frecuencia de 60 a 1440 minutos")
+	if req.Mode != "passive_https" {
+		writeErr(w, 422, "El modo autorizado debe ser passive_https")
+		return
+	}
+	if !pilotTicketPattern.MatchString(strings.TrimSpace(req.Ticket)) {
+		writeErr(w, 422, "La referencia de autorización debe tener de 8 a 128 caracteres, comenzar con letra o número y usar letras, números, espacios o . _ / : # ( ) , -")
+		return
+	}
+	if req.IntervalMinutes < pilotMinInterval || req.IntervalMinutes > pilotMaxInterval {
+		writeErr(w, 422, "El intervalo de comprobación debe estar entre 60 y 1440 minutos")
 		return
 	}
 	if err := s.pilotAllowedDomain(id, host); err != nil {
