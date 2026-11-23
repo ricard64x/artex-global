@@ -109,6 +109,9 @@ const (
 // Server exposes the ARTEX backend over a JSON HTTP API for the shadcn/ui
 // frontend.
 type Server struct {
+	auditMu     sync.Mutex
+	auditCancel map[int64]context.CancelFunc
+
 	m      *Manager
 	engine *Engine
 	ctx    context.Context
@@ -779,6 +782,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/runtime/inventory", s.runtimeInventory)
+	mux.HandleFunc("GET /api/runtime/autopilot", s.getAuditStatus)
+	mux.HandleFunc("GET /api/runtime/autopilot/runs/{id}/evidence", s.getAuditEvidence)
+	mux.HandleFunc("POST /api/runtime/autopilot/reviews", s.reviewAuditObservation)
 	mux.HandleFunc("GET /api/runtime/getangiru", s.getangiruStatus)
 	mux.HandleFunc("POST /api/runtime/getangiru/search", s.getangiruSearch)
 	mux.HandleFunc("GET /api/runtime/getangiru/metrics", s.getAutomaticMemoryMetrics)

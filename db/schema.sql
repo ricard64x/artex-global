@@ -1407,3 +1407,26 @@ CREATE TABLE IF NOT EXISTS ndt_user_audit (
  ip_address TEXT NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Ñandutest: evidence and reviewed learning for the existing task pilot.
+CREATE TABLE IF NOT EXISTS ndt_audit_runs (
+ id BIGSERIAL PRIMARY KEY,
+ plan_id BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ status TEXT NOT NULL CHECK(status IN ('running','completed','blocked','unavailable','canceled','interrupted')),
+ started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ finished_at TIMESTAMPTZ,
+ report JSONB NOT NULL DEFAULT '{}',
+ evidence_sha256 TEXT NOT NULL DEFAULT ''
+);
+-- Only one audit can run globally, even with several application processes.
+CREATE UNIQUE INDEX IF NOT EXISTS ndt_audit_single_running ON ndt_audit_runs(status) WHERE status='running';
+CREATE INDEX IF NOT EXISTS ndt_audit_run_history ON ndt_audit_runs(plan_id,id DESC);
+CREATE TABLE IF NOT EXISTS ndt_audit_reviews (
+ plan_id BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+ fingerprint TEXT NOT NULL,
+ run_id BIGINT NOT NULL REFERENCES ndt_audit_runs(id) ON DELETE CASCADE,
+ verdict TEXT NOT NULL CHECK(verdict IN ('confirmado','descartado','desactualizado')),
+ reviewed_by TEXT NOT NULL DEFAULT 'ARTEX',
+ reviewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY(plan_id,fingerprint)
+);

@@ -89,6 +89,7 @@ export const sidebarItems: NavGroup[] = [
       { id: "mcp", title: "MCP", url: "/system/mcp", icon: Plug },
       { id: "skills", title: "Skill", url: "/system/skills", icon: Sparkles },
       { id: "tools", title: "工具", url: "/system/tools", icon: Wrench },
+      { id: "autopilot", title: "Autopiloto de auditoría", url: "/system/autopilot", icon: ShieldCheck },
       { id: "runtime-security", title: "Inventario de seguridad", url: "/system/runtime-security", icon: ShieldCheck },
       { id: "notify", title: "通知推送", url: "/system/notify", icon: BellRing },
       { id: "intercept", title: "拦截规则", url: "/system/intercept", icon: ShieldAlert },

@@ -62,6 +62,20 @@ export default function SecurityInventoryPage() {
       </div>
       <RuntimeLLMStatus />
       <Card>
+        <CardHeader>
+          <CardTitle>Controles automatizados nativos</CardTitle>
+          <CardDescription>
+            DNS, certificado TLS, cabeceras HTTPS y atributos de cookies, con programación, evidencia y aprendizaje de
+            revisiones.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/system/autopilot" className="text-primary text-sm underline underline-offset-4">
+            Configurar el autopiloto de auditoría
+          </Link>
+        </CardContent>
+      </Card>
+      <Card>
         <CardHeader className="space-y-3">
           <CardTitle>Herramientas disponibles</CardTitle>
           <CardDescription>

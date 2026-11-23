@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import Link from "next/link";
+
 import { AlertCircleIcon, CheckCircle2Icon, ClockIcon, RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -134,6 +136,17 @@ export function PilotTab({ taskId }: { taskId: string }) {
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-2 pt-5 text-sm">
+          <p>
+            El piloto incluye controles de DNS, certificado, cabeceras y cookies, espera progresiva ante fallos y
+            revisión de observaciones repetidas.
+          </p>
+          <Link href="/system/autopilot" className="text-primary underline underline-offset-4">
+            Ver evidencia, comparación y aprendizaje del autopiloto
+          </Link>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">

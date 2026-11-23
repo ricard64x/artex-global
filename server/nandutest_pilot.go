@@ -50,6 +50,7 @@ type pilotAuthorization struct {
 	LastLatencyMS   *int       `json:"last_latency_ms"`
 	LastError       *string    `json:"last_error"`
 	Checks          int        `json:"checks"`
+	FailureStreak   int        `json:"failure_streak"`
 }
 
 func pilotHost(host string) string {
@@ -143,6 +144,9 @@ func (s *Server) ensurePilotSchema() error {
 	if err != nil {
 		return err
 	}
+	if _, err = s.m.pg.Exec(`ALTER TABLE ndt_pilot_authorizations ADD COLUMN IF NOT EXISTS failure_streak INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
 	pilotSchema.ready = true
 	return nil
 }
@@ -205,10 +209,10 @@ func (s *Server) pilotAllowedDomain(taskID int64, host string) error {
 func (s *Server) readPilotAuthorization(taskID int64) (pilotAuthorization, error) {
 	var a pilotAuthorization
 	err := s.m.pg.QueryRow(`SELECT task_id,domain,mode,ticket,enabled,interval_minutes,
- approved_at,expires_at,next_check,last_check,last_http,last_latency_ms,last_error,checks
+ approved_at,expires_at,next_check,last_check,last_http,last_latency_ms,last_error,checks,failure_streak
  FROM ndt_pilot_authorizations WHERE task_id=$1`, taskID).
 		Scan(&a.TaskID, &a.Domain, &a.Mode, &a.Ticket, &a.Enabled, &a.IntervalMinutes,
-			&a.ApprovedAt, &a.ExpiresAt, &a.NextCheck, &a.LastCheck, &a.LastHTTP, &a.LastLatencyMS, &a.LastError, &a.Checks)
+			&a.ApprovedAt, &a.ExpiresAt, &a.NextCheck, &a.LastCheck, &a.LastHTTP, &a.LastLatencyMS, &a.LastError, &a.Checks, &a.FailureStreak)
 	return a, err
 }
 func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
@@ -379,7 +383,7 @@ func (s *Server) pilotApprove(w http.ResponseWriter, r *http.Request) {
  VALUES($1,$2,'passive_https',$3,TRUE,$4,NOW(),$5,NOW())
  ON CONFLICT(task_id) DO UPDATE SET domain=EXCLUDED.domain, mode='passive_https',ticket=EXCLUDED.ticket,
  enabled=TRUE,interval_minutes=EXCLUDED.interval_minutes,approved_at=NOW(),expires_at=EXCLUDED.expires_at,
- next_check=GREATEST(ndt_pilot_authorizations.next_check,NOW()),last_error=NULL`, id, host, strings.TrimSpace(req.Ticket), req.IntervalMinutes, expires.UTC())
+ next_check=GREATEST(ndt_pilot_authorizations.next_check,NOW()),last_error=NULL,failure_streak=0`, id, host, strings.TrimSpace(req.Ticket), req.IntervalMinutes, expires.UTC())
 	if err != nil {
 		writeErr(w, 503, "No se pudo guardar la autorización")
 		return
@@ -402,6 +406,7 @@ func (s *Server) pilotRevoke(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 503, "No se pudo revocar la autorización")
 		return
 	}
+	s.cancelAudit(id)
 	writeJSON(w, 200, map[string]any{"ok": true, "enabled": false})
 }
 func (s *Server) pilotManualCheck(w http.ResponseWriter, r *http.Request) {
@@ -442,6 +447,9 @@ func (s *Server) startPilotScheduler() {
 				return
 			case <-ticker.C:
 			}
+			if auditDisabled() {
+				continue
+			}
 			if err := s.ensurePilotSchema(); err != nil {
 				continue
 			}
@@ -471,31 +479,7 @@ func (s *Server) pilotExecuteOnce(ctx context.Context, taskID int64) string {
 		return "busy"
 	}
 	defer pilotRunMu.Unlock()
-	var host string
-	var minutes int
-	err := s.m.pg.QueryRow(`UPDATE ndt_pilot_authorizations SET
- next_check=NOW()+(interval_minutes * INTERVAL '1 minute')
- WHERE task_id=$1 AND enabled=TRUE AND mode='passive_https'
- AND expires_at>NOW() AND next_check<=NOW()
- AND NOT EXISTS(SELECT 1 FROM ndt_pilot_checks WHERE task_id=$1 AND checked_at>NOW()-INTERVAL '60 minutes' AND outcome IN ('ok','error'))
- RETURNING domain,interval_minutes`, taskID).Scan(&host, &minutes)
-	if err != nil {
-		return "no_approval"
-	}
-	if err := s.pilotAllowedDomain(taskID, host); err != nil {
-		_, _ = s.m.pg.Exec(`UPDATE ndt_pilot_authorizations SET enabled=FALSE,last_error='scope_revoked' WHERE task_id=$1`, taskID)
-		_, _ = s.m.pg.Exec(`INSERT INTO ndt_pilot_checks(task_id,outcome,error_code) VALUES($1,'blocked','scope_revoked')`, taskID)
-		return "scope_revoked"
-	}
-	var previousHTTP int
-	_ = s.m.pg.QueryRow(`SELECT COALESCE(last_http,0) FROM ndt_pilot_authorizations WHERE task_id=$1`, taskID).Scan(&previousHTTP)
-	status, latency, outcome, code := pilotPassiveHTTPS(ctx, host)
-	changed := previousHTTP > 0 && (status == 0 || previousHTTP != status)
-	_, _ = s.m.pg.Exec(`UPDATE ndt_pilot_authorizations SET last_check=NOW(),last_http=NULLIF($2,0),
- last_latency_ms=$3,last_error=NULLIF($4,''),checks=checks+1 WHERE task_id=$1`, taskID, status, latency, code)
-	_, _ = s.m.pg.Exec(`INSERT INTO ndt_pilot_checks(task_id,outcome,http_status,latency_ms,tls_verified,status_changed,error_code)
- VALUES($1,$2,NULLIF($3,0),$4,$5,$6,NULLIF($7,''))`, taskID, outcome, status, latency, outcome == "ok", changed, code)
-	return outcome
+	return s.executeAudit(ctx, taskID)
 }
 func pilotPassiveHTTPS(ctx context.Context, host string) (int, int, string, string) {
 	if !pilotValidHost(host) {

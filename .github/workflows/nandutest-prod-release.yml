@@ -8,6 +8,10 @@ on:
       - ".github/workflows/nandutest-prod-release.yml"
       - "server/webui_embed.go"
       - "fly.nandutest.toml"
+      - "autopilot/**"
+      - "server/autopilot*.go"
+      - "db/schema.sql"
+      - "web/src/lib/autopilot.ts"
       - "server/runtime_inventory.go"
       - "server/runtime_inventory_test.go"
       - "Dockerfile.nandutest"
@@ -228,6 +232,9 @@ jobs:
             return 1
           }
           assert_unauthenticated_401 GET /api/users
+          assert_unauthenticated_401 GET /api/runtime/autopilot
+          assert_unauthenticated_401 POST /api/runtime/autopilot/reviews
+          assert_unauthenticated_401 GET /api/runtime/autopilot/runs/1/evidence
           for path in /api/runtime/getangiru /api/runtime/getangiru/search /api/runtime/getangiru/feedback /api/runtime/shared-model/test; do
             method=GET
             case "$path" in
