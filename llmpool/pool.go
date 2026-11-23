@@ -84,12 +84,18 @@ func (p *Pool) Head() *Member { return p.members[0] }
 // before the body is read, so they always land in the safe window.
 func (p *Pool) Stream(ctx context.Context, req llm.CompletionRequest) iter.Seq2[llm.StreamEvent, error] {
 	order := p.order(req)
+	if requestHasNoToolCapableMember(req, order) {
+		return func(yield func(llm.StreamEvent, error) bool) {
+			yield(llm.StreamEvent{}, errors.New("No hay un modelo compatible con herramientas disponible. Qwen local no admite llamadas a herramientas; el respaldo está deshabilitado o no disponible. Ejecución detenida sin repetir herramientas ni cambiar el objetivo."))
+		}
+	}
 	return func(yield func(llm.StreamEvent, error) bool) {
 		var lastErr error
 		for i, m := range order {
 			emitted := false
 			var failed error
-			for ev, err := range m.Prov.Stream(ctx, req) {
+			memberReq := p.requestForMember(req, m)
+			for ev, err := range m.Prov.Stream(ctx, memberReq) {
 				if err != nil && !emitted && shouldFailoverMember(ctx, err, m) {
 					failed = err
 					break // safe window: nothing reached the caller yet
@@ -132,9 +138,12 @@ func (p *Pool) Stream(ctx context.Context, req llm.CompletionRequest) iter.Seq2[
 // chain-exhaustion behavior.
 func (p *Pool) Complete(ctx context.Context, req llm.CompletionRequest) (llm.Message, string, llm.Usage, error) {
 	order := p.order(req)
+	if requestHasNoToolCapableMember(req, order) {
+		return llm.Message{}, "", llm.Usage{}, errors.New("No hay un modelo compatible con herramientas disponible. Qwen local no admite llamadas a herramientas; el respaldo está deshabilitado o no disponible.")
+	}
 	var lastErr error
 	for i, m := range order {
-		msg, sr, usage, err := m.Prov.Complete(ctx, req)
+		msg, sr, usage, err := m.Prov.Complete(ctx, p.requestForMember(req, m))
 		if err == nil {
 			p.health.Pass(m.ID)
 			return msg, sr, usage, nil
@@ -320,4 +329,24 @@ func blocksLen(bs []llm.ContentBlock) int {
 		}
 	}
 	return n
+}
+
+// requestForMember prevents the local gateway's 256-token output cap from
+// truncating JSON tool-call arguments in a cloud backup. This applies only when
+// a local no-tools model heads a failover chain and a compatible cloud member
+// is actually selected for a tool-using request. Plain chat and explicit
+// single-profile selections retain their configured output cap.
+func (p *Pool) requestForMember(req llm.CompletionRequest, m *Member) llm.CompletionRequest {
+	if len(req.Tools) > 0 && req.MaxTokens > 0 && req.MaxTokens < 3072 &&
+		len(p.members) > 0 && p.members[0].NoTools &&
+		!m.NoTools && m.MaxRequestBytes == 0 {
+		req.MaxTokens = 3072
+	}
+	return req
+}
+
+// Never send tool schemas to a gateway that cannot produce structured tool calls,
+// including when every compatible backup is temporarily unavailable.
+func requestHasNoToolCapableMember(req llm.CompletionRequest, order []*Member) bool {
+	return len(req.Tools) > 0 && len(order) == 1 && order[0].NoTools
 }

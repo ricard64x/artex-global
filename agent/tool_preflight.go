@@ -27,6 +27,9 @@ func (p *runtimePrivilegeTool) Call(ctx context.Context, in json.RawMessage, tc 
 		var arg map[string]any
 		if err := json.Unmarshal(in, &arg); err == nil {
 			if cmd, ok := arg["command"].(string); ok {
+				if blocked := preflightAPIReconCommand(cmd, tc); blocked != "" {
+					return actool.Errorf(blocked), nil
+				}
 				updated, n, block := AdaptCommandForRuntime(cmd)
 				if block == "" {
 					var manifestNote, manifestBlock string
@@ -54,6 +57,22 @@ func (p *runtimePrivilegeTool) Call(ctx context.Context, in json.RawMessage, tc 
 					in = data
 				}
 			}
+		}
+	}
+	if strings.EqualFold(p.Name(), "Write") || strings.EqualFold(p.Name(), "Edit") {
+		var arg map[string]any
+		if err := json.Unmarshal(in, &arg); err != nil {
+			return actool.Errorf("JSON incompleto de herramienta. Corregí la estructura; no repitas la misma llamada."), nil
+		}
+		filePath, _ := arg["file_path"].(string)
+		if filePath == "" {
+			return actool.Errorf("Se requiere file_path válido; no continuar con parámetros incompletos."), nil
+		}
+		if protectedSkillPath(filePath, tc) {
+			return actool.Errorf("No se permite modificar /app/skills; las plantillas son de solo lectura. Trabajá con una copia de la tarea dentro de /app/data/tasks/."), nil
+		}
+		if strings.EqualFold(p.Name(), "Write") && len(in) > 16384 {
+			return actool.Errorf("Escritura demasiado extensa. Evitá reescribir archivos completos; utilizá cambios pequeños o scripts ya suministrados."), nil
 		}
 	}
 	result, err := p.CoreTool.Call(ctx, in, tc)
@@ -325,4 +344,62 @@ func AdaptNodeInstallForRuntime(command, workingDir string) (string, string, str
 		workingDir = "/app"
 	}
 	return adaptNodeInstallForRuntimeAt(command, filepath.Clean(workingDir), "/app/skills/api-recon")
+}
+
+// preflightAPIReconCommand rejects deterministic local runtime mistakes.
+// It does not attempt any HTTP request, install a binary, or alter the target.
+func preflightAPIReconCommand(command string, tc *actool.ToolContext) string {
+	words := strings.Fields(strings.TrimSpace(command))
+	if len(words) < 2 {
+		return ""
+	}
+	bin := strings.ToLower(filepath.Base(words[0]))
+	script := words[1]
+	if (bin == "python" || bin == "python3" || bin == "python3.11" || bin == "python3.12") && strings.HasSuffix(strings.ToLower(script), ".js") {
+		return "Intérprete incorrecto: los archivos .js requieren Node.js, no Python. No se ejecutó; no volver a escribir el script en otro lenguaje."
+	}
+	for _, part := range words {
+		if strings.HasPrefix(part, "/app/skills/api-recon/recon/") {
+			return "La ruta /app/skills/api-recon/recon/ no existe. Copiá plantillas desde scripts/ al espacio de trabajo de la tarea antes de ejecutar."
+		}
+	}
+	if (bin == "node" || bin == "nodejs") && strings.Contains(strings.ToLower(script), "runtime_harvest.js") {
+		resolved := script
+		if !filepath.IsAbs(resolved) && tc != nil && tc.WorkingDir != "" {
+			resolved = filepath.Join(tc.WorkingDir, resolved)
+		}
+		if _, err := os.Stat(resolved); err != nil {
+			return "No se encontró runtime_harvest.js en la ruta indicada; comprobar primero la copia de trabajo."
+		}
+		for _, browser := range []string{"/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome", "/opt/google/chrome/chrome"} {
+			if fi, err := os.Stat(browser); err == nil && !fi.IsDir() {
+				return ""
+			}
+		}
+		return "No hay navegador Chromium compatible instalado: recolección dinámica no ejecutada. Conservar resultados estáticos y registrar la cobertura dinámica como pendiente; no reintentar editando scripts."
+	}
+	return ""
+}
+
+// Shared skills are read-only; symlinks in task workspaces cannot override this.
+func protectedSkillPath(path string, tc *actool.ToolContext) bool {
+	const root = "/app/skills"
+	if !filepath.IsAbs(path) {
+		dir := "/app"
+		if tc != nil && tc.WorkingDir != "" {
+			dir = tc.WorkingDir
+		}
+		path = filepath.Join(dir, path)
+	}
+	clean := filepath.Clean(path)
+	if clean == root || strings.HasPrefix(clean, root+"/") {
+		return true
+	}
+	real, err := filepath.EvalSymlinks(clean)
+	if err != nil {
+		if p, pe := filepath.EvalSymlinks(filepath.Dir(clean)); pe == nil {
+			real = filepath.Join(p, filepath.Base(clean))
+		}
+	}
+	return real == root || strings.HasPrefix(real, root+"/")
 }

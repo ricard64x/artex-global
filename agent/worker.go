@@ -385,6 +385,12 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 	// 收敛工具面、减少低价值调用。其余 SDK 默认工具(Read/Write/Edit/LS/Bash/Sleep)照常。
 	base = append(base, defaultToolsExcept("MultiEdit", "Glob", "Grep")...)
 	ctx = WithRunInfo(ctx, RunInfo{TaskID: taskID, ExplorationID: explorationID(ts), IntentID: intent.ID})
+	// Stop repeated malformed tool-call JSON at the run boundary. This is a
+	// defensive backstop when the SDK rejects arguments before tool preflight.
+	ctx, cancelToolLoop := context.WithCancel(ctx)
+	defer cancelToolLoop()
+	toolLoop := &toolErrorLoopGuard{}
+
 	tools, def, cleanup := AugmentTools(ctx, "worker", base)
 	defer cleanup()
 
@@ -487,6 +493,14 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 		if emit != nil {
 			r.NodeID, r.Worker = &intentID, name
 			emit(r)
+		}
+		if toolLoop.observe(r) {
+			if emit != nil {
+				emit(db.Activity{NodeID: &intentID, Worker: name, Kind: "system", IsError: true,
+					Summary: "Ejecución interrumpida: cuatro errores operativos repetidos",
+					Detail:  "Se detuvieron reintentos con argumentos JSON malformados o restricciones locales. La cobertura queda pendiente; revisar el entorno antes de reanudar. No se repitió el escaneo."})
+			}
+			cancelToolLoop()
 		}
 	}
 	// 意图 / 启动指令 / 意图锚定资产已随 system prompt 下发（见上方 sysBody 组装）。
