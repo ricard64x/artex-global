@@ -33,7 +33,7 @@ var pilotSchema = struct {
 }{}
 var pilotRunMu sync.Mutex
 var pilotHostPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
-var pilotTicketPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9 _./:#-]{7,127}$`)
+var pilotTicketPattern = regexp.MustCompile(`^[\pL\pN][\pL\pN\pM _./:#(),-]{7,127}$`)
 
 type pilotAuthorization struct {
 	TaskID          int64      `json:"task_id"`
@@ -377,9 +377,16 @@ func (s *Server) pilotApprove(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "La autorización debe vencer entre 15 minutos y 7 días")
 		return
 	}
-	if req.Mode != "passive_https" || !pilotTicketPattern.MatchString(strings.TrimSpace(req.Ticket)) ||
-		req.IntervalMinutes < pilotMinInterval || req.IntervalMinutes > pilotMaxInterval {
-		writeErr(w, 422, "Se requiere modo passive_https, ticket de aprobación y frecuencia de 60 a 1440 minutos")
+	if req.Mode != "passive_https" {
+		writeErr(w, 422, "El modo autorizado debe ser passive_https")
+		return
+	}
+	if !pilotTicketPattern.MatchString(strings.TrimSpace(req.Ticket)) {
+		writeErr(w, 422, "La referencia de autorización debe tener de 8 a 128 caracteres, comenzar con letra o número y usar letras, números, espacios o . _ / : # ( ) , -")
+		return
+	}
+	if req.IntervalMinutes < pilotMinInterval || req.IntervalMinutes > pilotMaxInterval {
+		writeErr(w, 422, "El intervalo de comprobación debe estar entre 60 y 1440 minutos")
 		return
 	}
 	if err := s.pilotAllowedDomain(id, host); err != nil {
