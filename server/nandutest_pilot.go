@@ -230,6 +230,11 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	present := err == nil
+	pentest, err := s.m.pg.Assets().PentestAuthorization(id)
+	if err != nil {
+		writeErr(w, 503, "No se pudo verificar la autorización de pentest")
+		return
+	}
 	active := present && a.Enabled && time.Now().Before(a.ExpiresAt) && !auditDisabled()
 	scopeErr := ""
 	if active {
@@ -296,7 +301,7 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 	_, pupErr := os.Stat("/app/skills/api-recon/scripts/node_modules/puppeteer-core")
 	phase := []map[string]any{
 		{"id": "mandate", "label": "Mandato y alcance autorizado", "state": func() string {
-			if active {
+			if pentest.Active {
 				return "aprobado"
 			}
 			return "bloqueado"
@@ -322,7 +327,7 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 			}
 			return "sin_evidencia"
 		}()},
-		{"id": "validation", "label": "Validación técnica controlada", "state": "requiere_autorizacion_especifica"},
+		{"id": "validation", "label": "Validación técnica controlada", "state": pentestPhaseState(pentest)},
 		{"id": "access", "label": "Prueba de acceso con cuenta autorizada", "state": "no_demostrada"},
 		{"id": "impact", "label": "Impacto y análisis posterior", "state": "no_demostrado"},
 		{"id": "report", "label": "Informe, remediación y reverificación", "state": "sin_cierre_verificado"},
@@ -333,9 +338,10 @@ func (s *Server) pilotStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"task_id": id, "pilot_enabled": active, "approval": approval, "scope_error": scopeErr,
+		"pentest_authorization": pentest,
 		"automation_enabled": !auditDisabled(),
 		"scoped_domains":     domainList, "mode": "passive_https_only", "history": history, "lab": lab,
-		"next_activity": "Las pruebas intrusivas requieren otra aprobación explícita; este piloto solo verifica HTTPS público.",
+		"next_activity": "El pentest utiliza la autorización persistente del administrador dentro del alcance indicado. Las comprobaciones periódicas HTTPS se configuran por separado.",
 		"phases":        phase, "metrics": map[string]any{
 			"tool_results": activities, "tool_errors": failedTools,
 			"findings": findings, "confirmed_findings": confirmedFindings,

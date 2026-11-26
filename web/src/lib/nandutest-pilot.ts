@@ -23,6 +23,14 @@ export interface PilotAuthorization {
 export interface PilotStatus {
   task_id: number;
   pilot_enabled: boolean;
+  pentest_authorization?: {
+    active: boolean;
+    persistent: boolean;
+    default_enabled: boolean;
+    revoked: boolean;
+    targets: string[];
+    reason: string;
+  };
   automation_enabled?: boolean;
   approval: PilotAuthorization | null;
   scope_error: string;

@@ -25,6 +25,8 @@ const phaseMessage: Record<string, string> = {
   requiere_revision: "Revisión técnica pendiente",
   sin_evidencia: "Sin evidencia suficiente",
   requiere_autorizacion_especifica: "Requiere autorización independiente",
+  autorizado_pendiente_evidencia: "Autorizada · pendiente de ejecución y evidencia",
+  no_demostrado: "Impacto sin demostrar",
   no_demostrada: "Acceso o impacto sin demostrar",
   sin_cierre_verificado: "Cierre completo aún no verificado",
 };
@@ -136,9 +138,54 @@ export function PilotTab({
   );
   const canAuthorize = Boolean(status && !loading && !error && status.automation_enabled !== false);
   const phases = status?.phases ?? [];
+  const pentest = status?.pentest_authorization;
+  const setPentestAuthorization = async (enabled: boolean) => {
+    setWorking(true);
+    try {
+      await api.setTaskPentestAuthorization(taskId, enabled);
+      await refresh();
+      toast.success(enabled ? "Pentest autorizado siempre dentro del alcance" : "Autorización persistente suspendida");
+    } catch (caught) {
+      toast.error("No se pudo guardar la autorización: " + String(caught));
+    } finally {
+      setWorking(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Pentest · autorización persistente</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Una autorización del administrador cubre las fases y los reintentos de esta revisión, sin vencimiento.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p aria-live="polite" className="font-medium">
+            {pentest?.active
+              ? "Autorizado siempre"
+              : pentest?.revoked
+                ? "Autorización suspendida"
+                : "Pendiente de autorización o alcance"}
+          </p>
+          <p>Alcance: {pentest?.targets.join(", ") || "Agregá un objetivo en Configurar alcance"}</p>
+          <p className="text-muted-foreground">
+            {pentest?.default_enabled
+              ? "Autorización predeterminada activa para las revisiones del administrador. "
+              : ""}
+            Los resultados de cada fase requieren evidencia. Las comprobaciones periódicas se gestionan abajo.
+          </p>
+          <Button
+            variant={pentest?.active ? "outline" : "default"}
+            disabled={working || loading || Boolean(error) || !pentest || (!pentest.active && !pentest.targets.length)}
+            onClick={() => void setPentestAuthorization(!pentest?.active)}
+          >
+            <ShieldCheckIcon className="mr-2 h-4 w-4" />
+            {pentest?.active ? "Suspender autorización" : "Autorizar pentest siempre"}
+          </Button>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>{approved ? "Gestionar piloto automático" : "Activar piloto automático"}</CardTitle>
@@ -254,8 +301,8 @@ export function PilotTab({
           </p>
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            Lograr acceso solo puede acreditarse mediante una prueba específica con cuentas de ensayo y autorización
-            expresa. No se prueba ni se declara automáticamente en este piloto.
+            El acceso se acredita con una prueba y evidencia verificable. La autorización de pentest se muestra arriba;
+            este piloto registra comprobaciones periódicas de HTTPS.
           </p>
         </CardContent>
       </Card>

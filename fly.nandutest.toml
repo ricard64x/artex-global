@@ -10,6 +10,7 @@ primary_region = "gru"
   ARTEX_LANG = "es"
   NANDUTEST_DELEGATED_ENABLED = "0"
   NANDUTEST_DISABLE_SELFUPDATE = "1"
+  NANDUTEST_PENTEST_AUTHORIZED_DEFAULT = "1"
 
 [[mounts]]
   source = "data"

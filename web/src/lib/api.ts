@@ -284,6 +284,11 @@ export const api = {
     ),
   getTaskPilot: (taskId: string | number) =>
     get<import("@/lib/nandutest-pilot").PilotStatus>("/tasks/" + encodeURIComponent(taskId) + "/pilot"),
+  setTaskPentestAuthorization: (taskId: string | number, enabled: boolean) =>
+    post<import("@/lib/nandutest-pilot").PilotStatus>(
+      "/tasks/" + encodeURIComponent(taskId) + "/pentest/authorization",
+      { enabled },
+    ),
   authorizeTaskPilot: (taskId: string | number, data: import("@/lib/nandutest-pilot").PilotApprovalRequest) =>
     post<{ ok: boolean; message: string }>("/tasks/" + encodeURIComponent(taskId) + "/pilot/authorize", data),
   revokeTaskPilot: (taskId: string | number) =>

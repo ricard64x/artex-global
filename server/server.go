@@ -368,6 +368,7 @@ func New(ctx context.Context, m *Manager, skillDir string, dataDir string, keyDi
 		log.Printf("[engine] no LLM provider configured - engine idle until set via /api/llm or env")
 	}
 	s.startAutomaticMemorySync()
+	s.bootstrapPentestAuthorization()
 	s.startPilotScheduler()
 	s.restoreTaskRuntimes()
 	go s.reconcileConcurrency()
@@ -789,6 +790,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/runtime/getangiru/search", s.getangiruSearch)
 	mux.HandleFunc("GET /api/runtime/getangiru/metrics", s.getAutomaticMemoryMetrics)
 	mux.HandleFunc("GET /api/tasks/{id}/pilot", s.pilotStatus)
+	mux.HandleFunc("POST /api/tasks/{id}/pentest/authorization", s.setPentestAuthorization)
 	mux.HandleFunc("POST /api/tasks/{id}/pilot/authorize", s.pilotApprove)
 	mux.HandleFunc("POST /api/tasks/{id}/pilot/revoke", s.pilotRevoke)
 	mux.HandleFunc("POST /api/tasks/{id}/pilot/check", s.pilotManualCheck)

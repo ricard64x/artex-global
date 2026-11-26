@@ -138,7 +138,7 @@ func (m *MainAgent) Chat(ctx context.Context, taskID int64, mainSeg int, as *db.
 	// 本任务的工作目录 <workDir>/tasks/<taskID>，先建好。
 	mainDir := ensureRunDir(m.workDir, taskID, 0)
 	ctx = intercept.WithReviewWorkingDirectory(ctx, mainDir)
-	system, boundary := deferredSystem(mainAgentSystem(goal, m.workDir, mainDir), def)
+	system, boundary := deferredSystem(mainAgentSystem(goal, m.workDir, mainDir)+pentestAuthorizationBlock(as, taskID)+constraintBlock(ts), def)
 	opts := agentcore.Options{
 		Provider:        m.prov,
 		SystemPrompt:    system,

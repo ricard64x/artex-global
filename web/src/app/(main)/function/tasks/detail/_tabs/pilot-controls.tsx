@@ -100,6 +100,15 @@ export function PilotQuickControl({ pilot, onOpen }: { pilot: TaskPilotState; on
           <span className={active ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>· {label}</span>
         </p>
         <p className="text-muted-foreground text-xs">{hint}</p>
+        {status?.pentest_authorization && !error && (
+          <p className="text-sm" aria-live="polite">
+            {status.pentest_authorization.active
+              ? "Pentest autorizado siempre · sin vencimiento dentro del alcance"
+              : status.pentest_authorization.revoked
+                ? "Autorización de pentest suspendida"
+                : "Pentest pendiente de autorización o alcance"}
+          </p>
+        )}
       </div>
       <Button
         type="button"

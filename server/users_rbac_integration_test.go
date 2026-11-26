@@ -78,6 +78,7 @@ func TestDelegatedRBACRevocationDB(t *testing.T) {
 	for _,v:=range []struct{method,path string}{
 		{"GET","/api/settings"},{"GET","/api/tasks/42/intercept-rules"},
 		{"POST","/api/tasks"},{"GET","/api/users"},{"GET","/api/ping"},
+		{"POST","/api/tasks/40/pentest/authorization"},
 	}{
 		code,_=rig.do(v.method,v.path,memberToken,nil)
 		if code!=403{t.Fatalf("allowed delegated %s %s: %d",v.method,v.path,code)}
